@@ -2,6 +2,8 @@
 
 手机端网页应用（PWA），用来算全站仪测回法里的盘左、盘右和距离平均。纯 HTML/CSS/JS，无框架、可离线、可添加到手机主屏幕。
 
+[![tests](https://github.com/Prqingyu/total-station-calc/actions/workflows/test.yml/badge.svg)](https://github.com/Prqingyu/total-station-calc/actions/workflows/test.yml)
+
 **在线使用：<https://prqingyu.github.io/total-station-calc/>**
 
 <p>
@@ -62,6 +64,7 @@ npm install          # 仅用于测试（playwright-core）
 npm test             # 计算核心单元测试（对参考表数值）
 npm run serve        # http://127.0.0.1:8787/
 node tests/e2e.mjs   # 无头 Edge 端到端测试 + 截图
+node tests/pwa.mjs   # 线上 PWA：离线、剪贴板、边界提示
 node tools/screenshots.mjs
 ```
 
