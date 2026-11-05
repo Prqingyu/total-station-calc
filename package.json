@@ -8,7 +8,10 @@
     "test": "node --test tests/calc.test.mjs",
     "serve": "node tools/serve.mjs",
     "icons": "python tools/make_icons.py",
-    "e2e": "node tests/e2e.mjs"
+    "e2e": "node tests/e2e.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "test:pwa": "node tests/pwa.mjs",
+    "screenshots": "node tools/screenshots.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.56.0"
