@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="测回计算器">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#205092"/>
+      <stop offset="1" stop-color="#0a2240"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <path d="M12.4 45.2h39.2" stroke="#f5f7fb" stroke-width="2.7" stroke-linecap="round"/>
+  <path d="M32 45.2 46 25" stroke="#f5f7fb" stroke-width="2.7" stroke-linecap="round"/>
+  <path d="M32 45.2m0 0a14.8 14.8 0 0 0 25.5-8.5" fill="none" stroke="#d9a441" stroke-width="2.7" stroke-linecap="round"/>
+  <circle cx="32" cy="45.2" r="2.9" fill="#d9a441"/>
+</svg>

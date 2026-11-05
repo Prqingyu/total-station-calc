@@ -1,0 +1,16 @@
+{
+  "name": "total-station-calc",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "全站仪测回计算器：盘左 / 盘右 / 距离平均（移动端 PWA）",
+  "scripts": {
+    "test": "node --test tests/calc.test.mjs",
+    "serve": "node tools/serve.mjs",
+    "icons": "python tools/make_icons.py",
+    "e2e": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}
