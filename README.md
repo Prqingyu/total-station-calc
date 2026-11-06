@@ -3,6 +3,7 @@
 手机端网页应用（PWA）：**盘左 / 盘右 / 汇总** 三个选项卡。默认两个测回，只输读数，每个读数后面带一个水平距离框，底部数字键盘连续输入；汇总页给各测回平均角和水平距离。可离线、可添加到主屏幕。
 
 [![tests](https://github.com/Prqingyu/total-station-calc/actions/workflows/test.yml/badge.svg)](https://github.com/Prqingyu/total-station-calc/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **在线使用：<https://prqingyu.github.io/total-station-calc/>**
 
