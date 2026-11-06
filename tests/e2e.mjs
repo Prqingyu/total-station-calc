@@ -154,7 +154,7 @@ check(
   (await page.textContent('#sum-angle')) === '125°14′24″',
   await page.textContent('#sum-angle'),
 );
-const oneSetRows = await page.locator('#sum-one-sets .one-row').allInnerTexts();
+const oneSetRows = await page.locator('#sum-one-sets .stat-row').allInnerTexts();
 check(
   '汇总两个一测回角值',
   oneSetRows.length === 2 && oneSetRows[0].includes('125°14′21″') && oneSetRows[1].includes('125°14′27″'),
