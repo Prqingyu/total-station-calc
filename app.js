@@ -340,6 +340,13 @@ function refreshReading(roundIndex, side, target) {
   if (distEl) distEl.textContent = item.dist;
   row.querySelector('.dist-cell')?.classList.toggle('invalid', Boolean(item.dist) && parseDistance(item.dist) == null);
 
+  const half = angleFromReadings(
+    state.rounds[roundIndex][side].a,
+    state.rounds[roundIndex][side].b,
+  );
+  const angleEl = roundEl.querySelector('.round-angle');
+  if (angleEl) angleEl.textContent = half == null ? '' : formatAngle(half);
+
   renderSummary();
   save();
 }
@@ -498,6 +505,8 @@ function buildRound(side, round, index) {
   const node = roundTpl.content.firstElementChild.cloneNode(true);
   node.dataset.index = String(index);
   node.querySelector('.round-no').textContent = `测回 ${index + 1}`;
+  const half = angleFromReadings(round[side].a, round[side].b);
+  node.querySelector('.round-angle').textContent = half == null ? '' : formatAngle(half);
 
   node.querySelector('.btn-del').addEventListener('click', () => {
     if (state.rounds.length <= 1) state.rounds[0] = createRound();
@@ -550,6 +559,21 @@ function renderFaces() {
 
 function renderSummary() {
   const summary = computeSummary();
+
+  const oneSets = $('#sum-one-sets');
+  oneSets.replaceChildren();
+  state.rounds.forEach((round, index) => {
+    const angle = oneSetAngle(round);
+    const row = document.createElement('div');
+    row.className = 'one-row';
+    const label = document.createElement('span');
+    label.textContent = `测回 ${index + 1}`;
+    const value = document.createElement('b');
+    value.textContent = angle != null ? formatAngle(angle) : '—';
+    row.append(label, value);
+    oneSets.appendChild(row);
+  });
+
   $('#sum-angle').textContent = summary.angle != null ? formatAngle(summary.angle) : '—';
   $('#sum-dist-a').textContent = summary.distA ? `${formatMeters(summary.distA.mean)} m` : '—';
   $('#sum-dist-b').textContent = summary.distB ? `${formatMeters(summary.distB.mean)} m` : '—';
