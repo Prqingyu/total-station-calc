@@ -565,7 +565,7 @@ function renderSummary() {
   state.rounds.forEach((round, index) => {
     const angle = oneSetAngle(round);
     const row = document.createElement('div');
-    row.className = 'one-row';
+    row.className = 'stat-row';
     const label = document.createElement('span');
     label.textContent = `测回 ${index + 1}`;
     const value = document.createElement('b');
