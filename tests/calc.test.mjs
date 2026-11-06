@@ -101,6 +101,9 @@ test('四舍六入五成双：与参考表距离均值一致', () => {
   assert.equal(formatMeters(114.55225), '114.552');
   assert.equal(formatExactMeters(59.2305), '59.2305');
   assert.equal(formatExactMeters(114.55225), '114.5523');
+  // 大数时不能把 0.666… 误判为 0.5
+  assert.equal(roundHalfEven(6000.000666666667, 3), 6000.001);
+  assert.equal(formatMeters(distanceStats([6000.0, 6000.001, 6000.001]).mean), '6000.001');
 });
 
 test('距离统计：GCP2 两个方向', () => {
