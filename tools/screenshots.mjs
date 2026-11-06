@@ -35,7 +35,7 @@ async function freshPage({ width = 390, height = 844, dark = false, mobile = tru
 
 async function loadDemo(page) {
   await page.click('#btn-demo');
-  await page.waitForTimeout(1800); // 等提示条消失
+  await page.waitForTimeout(1800);
 }
 
 /* ---------- 手机亮色 ---------- */
@@ -44,37 +44,28 @@ async function loadDemo(page) {
   await page.screenshot({ path: `${OUT}/final-00-empty.png` });
 
   await loadDemo(page);
-  await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
+  await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="d"]');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/final-01-left.png` });
 
-  await page.click('#keypad-hide');
   await page.click('#tab-right');
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${OUT}/final-02-right.png` });
 
-  await page.click('#tab-dist');
-  await page.waitForTimeout(200);
-  await page.click('#panel-dist .group[data-gindex="0"] .dist-val');
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/final-03-distance.png` });
-
   await page.click('#keypad-hide');
   await page.click('#tab-summary');
   await page.waitForTimeout(250);
-  await page.screenshot({ path: `${OUT}/final-04-summary.png` });
-
-  await page.screenshot({ path: `${OUT}/final-05-summary-full.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/final-03-summary.png` });
   await page.close();
   await context.close();
 }
 
-/* ---------- 说明抽屉 ---------- */
+/* ---------- 说明 ---------- */
 {
   const { context, page } = await freshPage();
   await page.click('#btn-help');
   await page.waitForTimeout(350);
-  await page.screenshot({ path: `${OUT}/final-06-help.png` });
+  await page.screenshot({ path: `${OUT}/final-04-help.png` });
   await page.close();
   await context.close();
 }
@@ -83,13 +74,13 @@ async function loadDemo(page) {
 {
   const { context, page } = await freshPage({ dark: true });
   await loadDemo(page);
-  await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="m"]');
+  await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="m"]');
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/final-07-dark-left.png` });
+  await page.screenshot({ path: `${OUT}/final-05-dark-left.png` });
   await page.click('#keypad-hide');
   await page.click('#tab-summary');
   await page.waitForTimeout(250);
-  await page.screenshot({ path: `${OUT}/final-08-dark-summary.png` });
+  await page.screenshot({ path: `${OUT}/final-06-dark-summary.png` });
   await page.close();
   await context.close();
 }
@@ -98,13 +89,13 @@ async function loadDemo(page) {
 {
   const { context, page } = await freshPage({ width: 1280, height: 900, mobile: false });
   await loadDemo(page);
-  await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
+  await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="d"]');
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/final-09-desktop-left.png` });
+  await page.screenshot({ path: `${OUT}/final-07-desktop-left.png` });
   await page.click('#keypad-hide');
   await page.click('#tab-summary');
   await page.waitForTimeout(250);
-  await page.screenshot({ path: `${OUT}/final-10-desktop-summary.png` });
+  await page.screenshot({ path: `${OUT}/final-08-desktop-summary.png` });
   await page.close();
   await context.close();
 }
