@@ -1,5 +1,5 @@
 /**
- * 线上 PWA / 离线 / 剪贴板 / 边界提示测试（数字键盘版）
+ * 线上 PWA / 离线 / 边界测试（盘左/盘右 + 距离框）
  *   node tests/pwa.mjs
  */
 import { chromium } from 'playwright-core';
@@ -24,7 +24,6 @@ const context = await browser.newContext({
   isMobile: true,
   hasTouch: true,
   serviceWorkers: 'allow',
-  permissions: ['clipboard-read', 'clipboard-write'],
 });
 const page = await context.newPage();
 page.on('pageerror', (error) => errors.push(`pageerror: ${error}`));
@@ -35,18 +34,7 @@ page.on('dialog', (dialog) => dialog.accept());
 
 async function press(key) {
   await page.click(`#keypad [data-key="${key}"]`);
-  await page.waitForTimeout(15);
-}
-
-async function typeReading(side, roundIndex, role, d, m, s) {
-  await page.click(
-    `#panel-${side} .round[data-index="${roundIndex}"] .reading[data-reading="${role}"] .cell[data-part="d"]`,
-  );
-  const degree = String(d);
-  for (const char of degree) await press(char);
-  if (degree.length < 3) await press('next');
-  for (const char of String(m).padStart(2, '0')) await press(char);
-  for (const char of String(s).padStart(2, '0')) await press(char);
+  await page.waitForTimeout(12);
 }
 
 await page.goto(URL_, { waitUntil: 'networkidle' });
@@ -66,28 +54,22 @@ const swState = await page.evaluate(async () => {
 });
 check('Service Worker 激活', swState === 'activated', String(swState));
 
-/* 等控制器接管后刷新一次 */
 await page.waitForTimeout(700);
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(350);
 
-/* 示例 + 复制 */
+/* 示例 + 汇总 */
 await page.click('#btn-demo');
 await page.waitForTimeout(300);
 await page.click('#tab-summary');
 await page.waitForTimeout(200);
-await page.click('#btn-copy');
-await page.waitForTimeout(350);
-const clip = await page.evaluate(async () => {
-  try {
-    return await navigator.clipboard.readText();
-  } catch (error) {
-    return `ERROR:${error}`;
-  }
-});
-check('复制文本含各测回平均值', clip.includes('各测回平均值') && clip.includes('125°14′24″'), clip.slice(0, 160));
-check('复制文本含盘左/盘右', clip.includes('盘左') && clip.includes('盘右'));
-check('复制文本含距离 59.230', clip.includes('59.230'));
+check(
+  '示例各测回平均 125°14′24″',
+  (await page.textContent('#sum-angle')) === '125°14′24″',
+  await page.textContent('#sum-angle'),
+);
+check('示例 A 距离 59.230 m', (await page.textContent('#sum-dist-a')) === '59.230 m');
+check('示例 B 距离 114.552 m', (await page.textContent('#sum-dist-b')) === '114.552 m');
 
 /* 离线 */
 await context.setOffline(true);
@@ -98,22 +80,25 @@ const offline = await page.evaluate(() => ({
   tabs: document.querySelectorAll('.mode').length,
   body: document.body.innerText.length,
 }));
-check('离线后仍可打开', offline.tabs === 4 && offline.body > 120, JSON.stringify(offline));
+check('离线后仍可打开', offline.tabs === 3 && offline.body > 40, JSON.stringify(offline));
+await page.click('#tab-summary');
+await page.waitForTimeout(200);
+const offlineAngle = await page.textContent('#sum-angle');
+const offlineA = await page.textContent('#sum-dist-a');
+check('离线后汇总仍可用', offlineAngle === '125°14′24″' && offlineA === '59.230 m', `${offlineAngle} / ${offlineA}`);
 await page.click('#tab-left');
-await page.waitForTimeout(150);
-const offlineValue = await page.textContent('#panel-left .face-display b');
-check('离线后数据与计算仍可用', offlineValue === '125°14′21″', offlineValue);
-await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
+await page.waitForTimeout(120);
+await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="d"]');
 await page.waitForTimeout(120);
 check('离线后键盘可用', await page.isVisible('#keypad'));
 await context.setOffline(false);
 
-/* 清空后测边界：非法分 */
+/* 边界：非法分 */
 await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(300);
 check('清空后键盘自动打开', await page.isVisible('#keypad'));
-await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
+await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="d"]');
 await press('0');
 await press('next');
 await press('6');
@@ -124,19 +109,6 @@ check(
   (await page.locator('#panel-left .cell.invalid').count()) >= 1,
   String(await page.locator('#panel-left .cell.invalid').count()),
 );
-
-/* 角值 >180° */
-await page.evaluate(() => localStorage.clear());
-await page.reload({ waitUntil: 'networkidle' });
-await page.waitForTimeout(300);
-await typeReading('left', 0, 'a', 0, 0, 0);
-await typeReading('left', 0, 'b', 200, 0, 0);
-await page.waitForTimeout(150);
-const warn = await page.evaluate(() => {
-  const el = document.querySelector('#panel-left .round[data-index="0"] .round-angle');
-  return { text: el?.textContent, warn: el?.classList.contains('warn') };
-});
-check('角值 >180° 标红提示', warn.warn === true, JSON.stringify(warn));
 
 /* 布局 */
 for (const width of [360, 430, 1280]) {
