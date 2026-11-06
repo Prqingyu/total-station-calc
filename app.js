@@ -9,10 +9,11 @@ import {
   formatAngle,
   formatDelta,
   angleFromReadings,
-  mean,
-  spread,
+  meanAngles,
+  spreadAngles,
+  angleSeparationSec,
   formatMeters,
-  formatExactMeters,
+  formatDetailedMeters,
   formatMm,
   parseDistance,
   distanceStats,
@@ -182,8 +183,8 @@ function computeRound(side, round) {
 function computeSummary() {
   const leftAngles = state.left.rounds.map((r) => computeRound('left', r));
   const rightAngles = state.right.rounds.map((r) => computeRound('right', r));
-  const leftAvg = mean(leftAngles.filter((v) => v != null));
-  const rightAvg = mean(rightAngles.filter((v) => v != null));
+  const leftAvg = meanAngles(leftAngles.filter((v) => v != null));
+  const rightAvg = meanAngles(rightAngles.filter((v) => v != null));
 
   const rows = [];
   const n = Math.max(leftAngles.length, rightAngles.length);
@@ -193,17 +194,18 @@ function computeSummary() {
     const hasLeft = l != null;
     const hasRight = r != null;
     if (!hasLeft && !hasRight) continue;
-    const one = hasLeft && hasRight ? (l + r) / 2 : null;
-    const diff = hasLeft && hasRight ? Math.abs(l - r) : null;
+    const one = hasLeft && hasRight ? meanAngles([l, r]) : null;
+    const diff = hasLeft && hasRight ? angleSeparationSec(l, r) : null;
     rows.push({ index: i, left: hasLeft ? l : null, right: hasRight ? r : null, one, diff });
   }
 
   const paired = rows.filter((row) => row.one != null);
   const oneSets = paired.map((row) => row.one);
-  const final = oneSets.length ? mean(oneSets) : (leftAvg ?? rightAvg);
-  const faceDiff = leftAvg != null && rightAvg != null ? Math.abs(leftAvg - rightAvg) : null;
+  const final = oneSets.length ? meanAngles(oneSets) : (leftAvg ?? rightAvg);
+  const faceDiff =
+    leftAvg != null && rightAvg != null ? angleSeparationSec(leftAvg, rightAvg) : null;
   const maxHalfDiff = paired.length ? Math.max(...paired.map((row) => row.diff)) : null;
-  const oneSpread = spread(oneSets);
+  const oneSpread = spreadAngles(oneSets);
 
   return { leftAvg, rightAvg, rows, paired, oneSets, final, faceDiff, maxHalfDiff, oneSpread };
 }
@@ -293,7 +295,9 @@ function refreshRoundAngle(side, round, node) {
   out.textContent = angle == null ? '—' : formatAngle(angle);
   out.classList.toggle('empty', angle == null);
   const warn = $('.round-warn', node);
-  if (warn) warn.hidden = !(angle != null && angle > 180 * 3600);
+  if (warn) {
+    warn.hidden = !(state[side].mode === 'readings' && angle != null && angle > 180 * 3600);
+  }
 }
 
 /* ---------------- 测回卡片 ---------------- */
@@ -394,7 +398,7 @@ function updateFaceResult(side) {
   const panel = $(`#panel-${side}`);
   if (!panel) return;
   const angles = state[side].rounds.map((round) => computeRound(side, round)).filter((v) => v != null);
-  const avg = mean(angles);
+  const avg = meanAngles(angles);
 
   $('.result-value', panel).textContent = avg == null ? '—' : formatAngle(avg);
 
@@ -406,7 +410,7 @@ function updateFaceResult(side) {
   } else {
     bits.push(`共 ${angles.length} 测回${missing > 0 ? `，${missing} 个未填完` : ''}`);
     if (angles.length > 1) {
-      const range = spread(angles);
+      const range = spreadAngles(angles);
       if (range != null) bits.push(`测回间较差 ${formatDelta(range)}`);
     }
   }
@@ -468,7 +472,7 @@ function updateGroupResult(group, node) {
   }
   const shown = formatMeters(stats.mean);
   out.textContent = shown;
-  const exact = formatExactMeters(stats.mean);
+  const exact = formatDetailedMeters(stats.mean);
   const bits = [`${stats.count} 次`];
   if (stats.count > 1) bits.push(`极差 ${formatMm(stats.rangeMm)} mm`);
   if (exact !== shown) bits.push(`精确 ${exact} m`);
@@ -574,6 +578,9 @@ function renderSummary() {
   const sum = computeSummary();
 
   $('#sum-final').textContent = sum.final != null ? formatAngle(sum.final) : '—';
+  $('#panel-summary .result-card .result-eyebrow').textContent = sum.oneSets.length
+    ? '各测回平均值'
+    : '单盘平均';
   let sub;
   if (sum.oneSets.length) {
     sub = `由 ${sum.oneSets.length} 个一测回平均`;
@@ -664,19 +671,30 @@ function buildRecordText() {
   if (info.length) lines.push(info.join('　'));
 
   const faceLine = (side, label) => {
-    const angles = state[side].rounds.map((round) => computeRound(side, round)).filter((v) => v != null);
-    if (!angles.length) return null;
-    const items = angles.map((value, i) => `测回${i + 1} ${formatAngle(value)}`).join('；');
-    return `${label}：${items}；平均 ${formatAngle(mean(angles))}`;
+    const items = [];
+    state[side].rounds.forEach((round, i) => {
+      const angle = computeRound(side, round);
+      if (angle != null) items.push(`测回${i + 1} ${formatAngle(angle)}`);
+    });
+    if (!items.length) return null;
+    const angles = state[side].rounds
+      .map((round) => computeRound(side, round))
+      .filter((value) => value != null);
+    return `${label}：${items.join('；')}；平均 ${formatAngle(meanAngles(angles))}`;
   };
   const leftLine = faceLine('left', '盘左');
   const rightLine = faceLine('right', '盘右');
   if (leftLine) lines.push(leftLine);
   if (rightLine) lines.push(rightLine);
   if (sum.final != null) {
-    let line = `各测回平均值：${formatAngle(sum.final)}`;
-    if (sum.oneSets.length) line += `（一测回平均，${sum.oneSets.length} 个测回）`;
-    lines.push(line);
+    if (sum.oneSets.length) {
+      lines.push(
+        `各测回平均值：${formatAngle(sum.final)}（一测回平均，${sum.oneSets.length} 个测回）`,
+      );
+    } else {
+      const only = sum.leftAvg != null ? '盘左' : '盘右';
+      lines.push(`单盘平均：${formatAngle(sum.final)}（仅${only}，未与另一盘配对）`);
+    }
   }
   if (sum.maxHalfDiff != null) lines.push(`半测回互差最大值：${formatDelta(sum.maxHalfDiff)}`);
 
