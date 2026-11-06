@@ -133,7 +133,8 @@ export function roundHalfEven(value, decimals = 0) {
   const scaled = value * f;
   const floor = Math.floor(scaled);
   const frac = scaled - floor;
-  const eps = 1e-7 * Math.max(1, Math.abs(scaled));
+  // 只把浮点误差当作“恰为 0.5”，不能按比例放大到把 0.67 误判成 0.5
+  const eps = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 8;
   if (Math.abs(frac - 0.5) <= eps) {
     return (floor % 2 === 0 ? floor : floor + 1) / f;
   }
