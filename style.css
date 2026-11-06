@@ -411,7 +411,7 @@ input {
 }
 
 .round-head .btn-del {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .round-no {
@@ -423,6 +423,7 @@ input {
 
 .round-angle {
   margin-left: auto;
+  margin-right: 2px;
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 650;
@@ -432,7 +433,6 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .round-angle.warn {
   color: var(--red);
 }
@@ -818,6 +818,37 @@ input {
 .sum-dist {
   display: flex;
   flex-direction: column;
+}
+
+.one-sets {
+  display: flex;
+  flex-direction: column;
+}
+
+.one-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.one-row + .one-row {
+  border-top: 1px dashed var(--line);
+}
+
+.one-row span {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.one-row b {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .sum-dist-row {
