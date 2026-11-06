@@ -68,7 +68,7 @@ check(
   (await page.textContent('#sum-angle')) === '125°14′24″',
   await page.textContent('#sum-angle'),
 );
-const pwaOneSets = await page.locator('#sum-one-sets .one-row').allInnerTexts();
+const pwaOneSets = await page.locator('#sum-one-sets .stat-row').allInnerTexts();
 check(
   '示例两个一测回角值',
   pwaOneSets.length === 2 && pwaOneSets[0].includes('125°14′21″') && pwaOneSets[1].includes('125°14′27″'),
