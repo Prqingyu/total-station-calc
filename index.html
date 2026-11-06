@@ -53,18 +53,20 @@
 
       <section class="panel" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary" hidden>
         <div class="card">
-          <h3>一测回</h3>
-          <div id="sum-one-sets" class="one-sets"></div>
+          <h3>各测回角值</h3>
+          <div id="sum-one-sets" class="stat-list"></div>
         </div>
-        <div class="result-card">
-          <div class="result-eyebrow">各测回平均</div>
-          <div class="result-value" id="sum-angle">—</div>
+        <div class="card">
+          <h3>各测回平均</h3>
+          <div class="stat-list">
+            <div class="stat-row strong"><span>平均角值</span><b id="sum-angle">—</b></div>
+          </div>
         </div>
         <div class="card">
           <h3>水平距离</h3>
-          <div class="sum-dist">
-            <div class="sum-dist-row"><span class="sd-name">A</span><b id="sum-dist-a">—</b></div>
-            <div class="sum-dist-row"><span class="sd-name">B</span><b id="sum-dist-b">—</b></div>
+          <div class="stat-list">
+            <div class="stat-row"><span>A</span><b id="sum-dist-a">—</b></div>
+            <div class="stat-row"><span>B</span><b id="sum-dist-b">—</b></div>
           </div>
         </div>
         <button type="button" class="btn-primary btn-wide" id="btn-new-station">新建测站</button>
@@ -109,7 +111,7 @@
         <h3>输入</h3>
         <p>点读数格子或距离框，用底部数字键盘输入。度按 → 到分；分、秒满两位自动跳；秒满两位自动到距离框；距离输入后按 → 下一条。</p>
         <h3>测回</h3>
-        <p>默认两个测回，盘左、盘右分别输入；需要更多点“＋ 测回”。汇总页显示各测回平均角和水平距离；“新建测站”清空全部数值。</p>
+        <p>默认两个测回，盘左、盘右分别输入；需要更多点“＋ 测回”。汇总页显示各测回角值、各测回平均角和水平距离；“新建测站”清空全部数值。</p>
         <h3>安装</h3>
         <p>Android：Chrome 菜单 → 添加到主屏幕。iPhone：Safari 分享 → 添加到主屏幕。首次打开后离线可用。</p>
         <p class="sheet-foot">v1.2 · 观测记录以原始手簿为准。</p>
