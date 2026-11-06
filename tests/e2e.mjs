@@ -1,5 +1,5 @@
 /**
- * 移动端端到端测试（数字键盘版）
+ * 移动端端到端测试（盘左/盘右 + 距离框 + 数字键盘）
  *   node tests/e2e.mjs
  *   BASE_URL=https://... node tests/e2e.mjs
  */
@@ -46,152 +46,111 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(350);
 
-/* ---------- 空状态：键盘自动打开 ---------- */
+/* ---------- 初始状态 ---------- */
+check('三个选项卡', (await page.locator('.mode').count()) === 3);
 check('首屏数字键盘打开', await page.isVisible('#keypad'));
 check(
-  '键盘标题为盘左测回1读数A',
-  (await page.textContent('#keypad-caption')) === '盘左 · 测回 1 · 读数 A',
+  '键盘标题为盘左测回1A读数',
+  (await page.textContent('#keypad-caption')) === '盘左 · 测回 1 · A 读数',
   await page.textContent('#keypad-caption'),
 );
+check('默认两个测回', (await page.locator('#panel-left .round').count()) === 2);
+check('盘右也有两个测回', (await page.locator('#panel-right .round').count()) === 2);
 check(
-  '首格自动选中',
-  (await page.getAttribute('#panel-left .reading[data-reading="a"] .cell.active', 'data-part')) === 'd',
+  '无小字说明',
+  (await page.locator('.result-sub, .panel-head, .record, .face-display, .seg').count()) === 0,
 );
-check('无小字说明', (await page.locator('.result-sub, .panel-head, .record').count()) === 0);
-await page.screenshot({ path: `${OUT}/${prefix}-01-keypad-empty.png` });
+await page.screenshot({ path: `${OUT}/${prefix}-01-empty.png` });
 
-/* ---------- 键盘输入 ---------- */
+/* ---------- 数字键盘输入 ---------- */
 async function press(key) {
   await page.click(`#keypad [data-key="${key}"]`);
-  await page.waitForTimeout(15);
+  await page.waitForTimeout(12);
 }
 
-async function typeReading(side, roundIndex, role, d, m, s) {
+async function typeReading(side, roundIndex, target, d, m, s, dist) {
   await page.click(
-    `#panel-${side} .round[data-index="${roundIndex}"] .reading[data-reading="${role}"] .cell[data-part="d"]`,
+    `#panel-${side} .round[data-index="${roundIndex}"] .read-row[data-target="${target}"] .cell[data-part="d"]`,
   );
   const degree = String(d);
   for (const char of degree) await press(char);
   if (degree.length < 3) await press('next');
   for (const char of String(m).padStart(2, '0')) await press(char);
   for (const char of String(s).padStart(2, '0')) await press(char);
+  for (const char of String(dist)) await press(char === '.' ? 'dot' : char);
+  await press('next');
 }
 
-await typeReading('left', 0, 'a', 0, 20, 42);
+/* 第一个读数：秒满后应自动进入距离 */
+await page.click('#panel-left .round[data-index="0"] .read-row[data-target="a"] .cell[data-part="d"]');
+await press('0');
+await press('next');
+await press('2');
+await press('0');
+await press('4');
+await press('2');
 await page.waitForTimeout(80);
 check(
-  '输完读数 A 自动跳到读数 B',
-  (await page.getAttribute('#panel-left .reading[data-reading="b"] .cell.active', 'data-part')) === 'd',
+  '秒满自动跳到距离框',
+  (await page.textContent('#keypad-caption')) === '盘左 · 测回 1 · A 距离',
+  await page.textContent('#keypad-caption'),
 );
-await typeReading('left', 0, 'b', 125, 35, 0);
-await page.waitForTimeout(120);
-check(
-  '第 1 测回角值 125°14′18″',
-  (await page.textContent('#panel-left .round[data-index="0"] .round-angle')) === '125°14′18″',
-  await page.textContent('#panel-left .round[data-index="0"] .round-angle'),
-);
-check(
-  '盘左平均 125°14′18″',
-  (await page.textContent('#panel-left .face-display b')) === '125°14′18″',
-  await page.textContent('#panel-left .face-display b'),
-);
-
-/* 添加第二测回 */
-await page.click('[data-add="left"]');
-await page.waitForTimeout(120);
-check('添加测回后键盘定位到新测回', await page.isVisible('#keypad'));
-await typeReading('left', 1, 'a', 90, 11, 36);
-await typeReading('left', 1, 'b', 215, 26, 0);
+for (const char of '59.230') await press(char === '.' ? 'dot' : char);
+await press('next');
+await typeReading('left', 0, 'b', 125, 35, 0, '114.552');
+await typeReading('left', 1, 'a', 90, 11, 36, '59.231');
+await typeReading('left', 1, 'b', 215, 26, 0, '114.553');
 await page.waitForTimeout(150);
-check(
-  '盘左两测回平均 125°14′21″',
-  (await page.textContent('#panel-left .face-display b')) === '125°14′21″',
-  await page.textContent('#panel-left .face-display b'),
-);
-await page.screenshot({ path: `${OUT}/${prefix}-02-left-keypad.png` });
-
-/* 收起 / 重新打开键盘 */
-await page.click('#keypad-hide');
-await page.waitForTimeout(100);
-check('收起键盘', !(await page.isVisible('#keypad')));
-await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
-await page.waitForTimeout(100);
-check('点格子重新打开键盘', await page.isVisible('#keypad'));
+const leftValues = await page.evaluate(() => ({
+  a: document.querySelector('#panel-left .round[data-index="0"] .read-row[data-target="a"]').innerText,
+  dist: document.querySelector('#panel-left .round[data-index="0"] .read-row[data-target="a"] .dist-val').textContent,
+}));
+check('盘左第 1 测回读数 A 完整', leftValues.a.includes('0') && leftValues.a.includes('20') && leftValues.a.includes('42'), leftValues.a);
+check('距离框显示 59.230', leftValues.dist === '59.230', leftValues.dist);
+await page.screenshot({ path: `${OUT}/${prefix}-02-left.png` });
 
 /* 盘右 */
 await page.click('#tab-right');
 await page.waitForTimeout(150);
-await typeReading('right', 0, 'a', 180, 21, 12);
-await typeReading('right', 0, 'b', 305, 35, 36);
-await page.click('[data-add="right"]');
-await page.waitForTimeout(120);
-await typeReading('right', 1, 'a', 270, 11, 42);
-await typeReading('right', 1, 'b', 35, 26, 12);
+await typeReading('right', 0, 'a', 180, 21, 12, '59.230');
+await typeReading('right', 0, 'b', 305, 35, 36, '114.551');
+await typeReading('right', 1, 'a', 270, 11, 42, '59.231');
+await typeReading('right', 1, 'b', 35, 26, 12, '114.553');
 await page.waitForTimeout(150);
-check(
-  '盘右两测回平均 125°14′27″',
-  (await page.textContent('#panel-right .face-display b')) === '125°14′27″',
-  await page.textContent('#panel-right .face-display b'),
-);
 await page.screenshot({ path: `${OUT}/${prefix}-03-right.png` });
 
-/* 直接输角值（保留读数数据不丢） */
+/* 距离不截断 */
+const clipped = await page.evaluate(() =>
+  [...document.querySelectorAll('.dist-val')].some((el) => el.scrollWidth > el.clientWidth + 1),
+);
+check('距离数值不截断', !clipped);
+
+/* 增加/删除测回 */
 await page.click('#tab-left');
-await page.click('#panel-left [data-mode="angles"]');
+await page.waitForTimeout(120);
+await page.click('[data-add="left"]');
 await page.waitForTimeout(150);
-check('切到角值模式后键盘可用', await page.isVisible('#keypad'));
-await typeReading('left', 0, 'angle', 125, 14, 21);
-await typeReading('left', 1, 'angle', 125, 14, 27);
-await page.waitForTimeout(150);
-check(
-  '角值模式平均 125°14′24″',
-  (await page.textContent('#panel-left .face-display b')) === '125°14′24″',
-  await page.textContent('#panel-left .face-display b'),
-);
-await page.click('#panel-left [data-mode="readings"]');
-await page.waitForTimeout(150);
-check(
-  '切回读数模式仍为 125°14′21″',
-  (await page.textContent('#panel-left .face-display b')) === '125°14′21″',
-  await page.textContent('#panel-left .face-display b'),
-);
+check('增加测回', (await page.locator('#panel-left .round').count()) === 3);
+check('盘右同步增加', (await page.locator('#panel-right .round').count()) === 3);
+await page.click('#panel-left .round[data-index="2"] .btn-del');
+await page.waitForTimeout(120);
+check('删除测回', (await page.locator('#panel-left .round').count()) === 2);
 
 /* 汇总 */
 await page.click('#tab-summary');
 await page.waitForTimeout(150);
 check(
-  '汇总各测回平均 125°14′24″',
-  (await page.textContent('#sum-final')) === '125°14′24″',
-  await page.textContent('#sum-final'),
+  '各测回平均 125°14′24″',
+  (await page.textContent('#sum-angle')) === '125°14′24″',
+  await page.textContent('#sum-angle'),
 );
-const roundRows = await page.locator('#sum-rounds .sum-round').count();
-check('汇总测回明细 2 行', roundRows === 2, String(roundRows));
-const checkTexts = await page.locator('#sum-checks .check').allInnerTexts();
+check('A 距离均值 59.230 m', (await page.textContent('#sum-dist-a')) === '59.230 m', await page.textContent('#sum-dist-a'));
+check('B 距离均值 114.552 m', (await page.textContent('#sum-dist-b')) === '114.552 m', await page.textContent('#sum-dist-b'));
 check(
-  '限差显示半测回互差 6″',
-  checkTexts[0]?.includes('6″'),
-  JSON.stringify(checkTexts),
+  '汇总不显示限差/复制',
+  (await page.locator('text=限差').count()) === 0 && (await page.locator('#btn-copy').count()) === 0,
 );
 await page.screenshot({ path: `${OUT}/${prefix}-04-summary.png` });
-
-/* 距离 */
-await page.click('#tab-dist');
-await page.waitForTimeout(120);
-check('汇总页收起键盘', !(await page.isVisible('#keypad')));
-await page.click('#panel-dist .group[data-gindex="0"] .dist-val');
-await page.waitForTimeout(100);
-check('点距离格打开键盘', await page.isVisible('#keypad'));
-for (const key of ['5', '9', 'dot', '2', '3', '0']) await press(key);
-await page.click('#panel-dist .group[data-gindex="0"] .add-item');
-await page.waitForTimeout(120);
-for (const key of ['5', '9', 'dot', '2', '3', '1']) await press(key);
-await page.waitForTimeout(150);
-check(
-  '距离均值 59.230（五成双）',
-  (await page.textContent('#panel-dist .group[data-gindex="0"] .dist-out')) === '59.230',
-  await page.textContent('#panel-dist .group[data-gindex="0"] .dist-out'),
-);
-await page.screenshot({ path: `${OUT}/${prefix}-05-distance.png` });
 
 /* 刷新持久化 */
 await page.reload({ waitUntil: 'networkidle' });
@@ -200,24 +159,32 @@ await page.click('#tab-summary');
 await page.waitForTimeout(150);
 check(
   '刷新后数据保留',
-  (await page.textContent('#sum-final')) === '125°14′24″',
-  await page.textContent('#sum-final'),
+  (await page.textContent('#sum-angle')) === '125°14′24″',
+  await page.textContent('#sum-angle'),
 );
 
-/* 示例数据 */
+/* 新建测站 */
+await page.click('#btn-new-station');
+await page.waitForTimeout(250);
+check('新建测站后回到盘左', (await page.textContent('#tab-left')).includes('盘左') && (await page.getAttribute('#tab-left', 'aria-selected')) === 'true');
+check('新建测站后两个空测回', (await page.locator('#panel-left .round').count()) === 2);
+const emptyCells = await page.evaluate(() =>
+  [...document.querySelectorAll('#panel-left .cell-val')].every((el) => el.textContent.trim() === ''),
+);
+check('新建测站清空读数', emptyCells);
+check('新建测站后键盘打开', await page.isVisible('#keypad'));
+await page.click('#tab-summary');
+await page.waitForTimeout(120);
+check('新建测站清空结果', (await page.textContent('#sum-angle')) === '—');
+
+/* 示例 */
 await page.click('#btn-demo');
 await page.waitForTimeout(300);
 await page.click('#tab-summary');
 await page.waitForTimeout(150);
-check(
-  '示例载入后各测回平均 125°14′24″',
-  (await page.textContent('#sum-final')) === '125°14′24″',
-  await page.textContent('#sum-final'),
-);
-const demoDist = await page.locator('#sum-dist .sum-dist-row').allInnerTexts();
-check('示例距离两行', demoDist.length === 2, JSON.stringify(demoDist));
-check('示例距离 59.230', demoDist[0]?.includes('59.230'), demoDist[0]);
-check('示例距离 114.552', demoDist[1]?.includes('114.552'), demoDist[1]);
+check('示例各测回平均 125°14′24″', (await page.textContent('#sum-angle')) === '125°14′24″');
+check('示例 A 距离 59.230 m', (await page.textContent('#sum-dist-a')) === '59.230 m');
+check('示例 B 距离 114.552 m', (await page.textContent('#sum-dist-b')) === '114.552 m');
 
 /* 说明 */
 await page.click('#btn-help');
@@ -249,7 +216,7 @@ const desktop = await page.evaluate(() => ({
   overflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
 }));
 check('桌面不破版', desktop.overflow && desktop.appWidth <= 600, JSON.stringify(desktop));
-await page.screenshot({ path: `${OUT}/${prefix}-06-desktop.png` });
+await page.screenshot({ path: `${OUT}/${prefix}-05-desktop.png` });
 
 await browser.close();
 
