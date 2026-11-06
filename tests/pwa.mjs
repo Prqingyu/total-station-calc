@@ -1,6 +1,5 @@
-/**
- * 线上 PWA / 离线 / 剪贴板 / 边界提示测试
- *   node tests/pwa.mjs
+﻿/**
+ * 绾夸笂 PWA / 绂荤嚎 / 鍓创鏉?/ 杈圭晫鎻愮ず娴嬭瘯锛堟暟瀛楅敭鐩樼増锛? *   node tests/pwa.mjs
  */
 import { chromium } from 'playwright-core';
 import { writeFile } from 'node:fs/promises';
@@ -13,7 +12,7 @@ const results = [];
 const errors = [];
 function check(name, ok, detail = '') {
   results.push({ name, ok: Boolean(ok), detail });
-  if (!ok) errors.push(name + (detail ? ` — ${detail}` : ''));
+  if (!ok) errors.push(name + (detail ? ` 鈥?${detail}` : ''));
 }
 
 const browser = await chromium.launch({ executablePath: EDGE, headless: true });
@@ -31,8 +30,28 @@ page.on('pageerror', (error) => errors.push(`pageerror: ${error}`));
 page.on('console', (message) => {
   if (message.type() === 'error') errors.push(`console: ${message.text()}`);
 });
+page.on('dialog', (dialog) => dialog.accept());
+
+async function press(key) {
+  await page.click(`#keypad [data-key="${key}"]`);
+  await page.waitForTimeout(15);
+}
+
+async function typeReading(side, roundIndex, role, d, m, s) {
+  await page.click(
+    `#panel-${side} .round[data-index="${roundIndex}"] .reading[data-reading="${role}"] .cell[data-part="d"]`,
+  );
+  const degree = String(d);
+  for (const char of degree) await press(char);
+  if (degree.length < 3) await press('next');
+  for (const char of String(m).padStart(2, '0')) await press(char);
+  for (const char of String(s).padStart(2, '0')) await press(char);
+}
 
 await page.goto(URL_, { waitUntil: 'networkidle' });
+await page.evaluate(() => localStorage.clear());
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(300);
 
 /* service worker */
 const swState = await page.evaluate(async () => {
@@ -44,20 +63,20 @@ const swState = await page.evaluate(async () => {
   }
   return reg.active ? reg.active.state : 'no-active';
 });
-check('Service Worker 激活', swState === 'activated', String(swState));
+check('Service Worker 婵€娲?, swState === 'activated', String(swState));
 
-/* 等控制器接管后刷新一次，确保离线缓存完整 */
-await page.waitForTimeout(800);
+/* 绛夋帶鍒跺櫒鎺ョ鍚庡埛鏂颁竴娆?*/
+await page.waitForTimeout(700);
 await page.reload({ waitUntil: 'networkidle' });
-await page.waitForTimeout(400);
+await page.waitForTimeout(350);
 
-/* 示例数据 + 复制结果 */
+/* 绀轰緥 + 澶嶅埗 */
 await page.click('#btn-demo');
-await page.waitForTimeout(400);
-await page.click('#tab-summary');
 await page.waitForTimeout(300);
+await page.click('#tab-summary');
+await page.waitForTimeout(200);
 await page.click('#btn-copy');
-await page.waitForTimeout(400);
+await page.waitForTimeout(350);
 const clip = await page.evaluate(async () => {
   try {
     return await navigator.clipboard.readText();
@@ -65,71 +84,69 @@ const clip = await page.evaluate(async () => {
     return `ERROR:${error}`;
   }
 });
-check(
-  '复制文本含各测回平均值 125°14′24″',
-  clip.includes('125°14′24″'),
-  clip.slice(0, 200),
-);
-check('复制文本含盘左/盘右', clip.includes('盘左') && clip.includes('盘右'));
-check('复制文本含距离 59.230', clip.includes('59.230'));
+check('澶嶅埗鏂囨湰鍚悇娴嬪洖骞冲潎鍊?, clip.includes('鍚勬祴鍥炲钩鍧囧€?) && clip.includes('125掳14鈥?4鈥?), clip.slice(0, 160));
+check('澶嶅埗鏂囨湰鍚洏宸?鐩樺彸', clip.includes('鐩樺乏') && clip.includes('鐩樺彸'));
+check('澶嶅埗鏂囨湰鍚窛绂?59.230', clip.includes('59.230'));
 
-/* 离线刷新 */
+/* 绂荤嚎 */
 await context.setOffline(true);
 await page.reload({ waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(900);
-const offlineOk = await page.evaluate(() => {
-  const title = document.title;
-  const tabs = document.querySelectorAll('.tab').length;
-  return { title, tabs, body: document.body.innerText.length };
-});
-check('离线后页面仍可打开', offlineOk.tabs === 4 && offlineOk.body > 200, JSON.stringify(offlineOk));
+await page.waitForTimeout(800);
+const offline = await page.evaluate(() => ({
+  title: document.title,
+  tabs: document.querySelectorAll('.mode').length,
+  body: document.body.innerText.length,
+  keypad: !document.querySelector('#keypad')?.hidden,
+}));
+check('绂荤嚎鍚庝粛鍙墦寮€', offline.tabs === 4 && offline.body > 120, JSON.stringify(offline));
 await page.click('#tab-left');
-await page.waitForTimeout(200);
-const offlineCalc = await page.textContent('#panel-left .result-value');
-check('离线后计算仍可用', offlineCalc === '125°14′21″', offlineCalc);
+await page.waitForTimeout(150);
+const offlineValue = await page.textContent('#panel-left .face-display b');
+check('绂荤嚎鍚庢暟鎹笌璁＄畻浠嶅彲鐢?, offlineValue === '125掳14鈥?1鈥?, offlineValue);
+check('绂荤嚎鍚庨敭鐩樺彲鐢?, offline.keypad);
 await context.setOffline(false);
 
-/* 边界：非法输入 */
+/* 娓呯┖鍚庢祴杈圭晫锛氶潪娉曞垎 */
+await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
-await page.waitForTimeout(400);
-await page.click('#tab-left');
-const round1 = page.locator('#panel-left .round').nth(0);
-const inputs = round1.locator('.reading[data-reading="a"] input');
-await inputs.nth(0).fill('0');
-await inputs.nth(1).fill('0');
-await inputs.nth(2).fill('0');
-const bInputs = round1.locator('.reading[data-reading="b"] input');
-await bInputs.nth(0).fill('0');
-await bInputs.nth(1).fill('60');
-await bInputs.nth(2).fill('0');
-await page.waitForTimeout(250);
+await page.waitForTimeout(300);
+check('娓呯┖鍚庨敭鐩樿嚜鍔ㄦ墦寮€', await page.isVisible('#keypad'));
+await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
+await press('0');
+await press('next');
+await press('6');
+await press('0');
+await page.waitForTimeout(120);
 check(
-  '分=60 被判为非法（标红/角值 —）',
-  (await round1.locator('.reading[data-reading="b"].invalid').count()) === 1,
-  await page.textContent('#panel-left .result-value'),
+  '鍒?60 鏍囩孩涓斾笉鍙備笌璁＄畻',
+  (await page.locator('#panel-left .cell.invalid').count()) >= 1,
+  String(await page.locator('#panel-left .cell.invalid').count()),
 );
 
-/* 边界：角值 >180° 提示 */
-await bInputs.nth(1).fill('0');
-await bInputs.nth(0).fill('200');
-await page.waitForTimeout(250);
-check(
-  '角值 >180° 显示提示',
-  await round1.locator('.round-warn').isVisible(),
-  await round1.locator('.round-foot output').innerText(),
-);
+/* 瑙掑€?>180掳 */
+await page.evaluate(() => localStorage.clear());
+await page.reload({ waitUntil: 'networkidle' });
+await page.waitForTimeout(300);
+await typeReading('left', 0, 'a', 0, 0, 0);
+await typeReading('left', 0, 'b', 200, 0, 0);
+await page.waitForTimeout(150);
+const warn = await page.evaluate(() => {
+  const el = document.querySelector('#panel-left .round[data-index="0"] .round-angle');
+  return { text: el?.textContent, warn: el?.classList.contains('warn') };
+});
+check('瑙掑€?>180掳 鏍囩孩鎻愮ず', warn.warn === true, JSON.stringify(warn));
 
-/* 桌面/小屏布局 */
+/* 甯冨眬 */
 for (const width of [360, 430, 1280]) {
   await page.setViewportSize({ width, height: 900 });
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(150);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth <= window.innerWidth + 1,
   );
-  check(`${width}px 无横向溢出`, overflow);
+  check(`${width}px 鏃犳í鍚戞孩鍑篳, overflow);
 }
 
-/* PWA 静态资源状态 */
+/* 璧勬簮 */
 const assets = await page.evaluate(async () => {
   const list = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'sw.js'];
   const out = {};
@@ -144,7 +161,7 @@ const assets = await page.evaluate(async () => {
   return out;
 });
 check(
-  'PWA 清单与资源可访问',
+  'PWA 娓呭崟涓庤祫婧愬彲璁块棶',
   Object.values(assets).every((status) => status === 200),
   JSON.stringify(assets),
 );
@@ -161,3 +178,4 @@ const summary = {
 await writeFile('shots/pwa-result.json', JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 if (summary.failed > 0) process.exitCode = 1;
+
