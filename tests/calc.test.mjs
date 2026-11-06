@@ -10,9 +10,13 @@ import {
   angleFromReadings,
   mean,
   spread,
+  meanAngles,
+  spreadAngles,
+  angleSeparationSec,
   roundHalfEven,
   formatMeters,
   formatExactMeters,
+  formatDetailedMeters,
   parseDistance,
   distanceStats,
 } from '../calc.js';
@@ -127,4 +131,25 @@ test('parseDistance 解析', () => {
   assert.equal(parseDistance('0'), null);
   assert.equal(parseDistance('-1'), null);
   assert.equal(parseDistance('abc'), null);
+});
+
+test('跨 0°/360° 的环形平均与较差', () => {
+  const a = sec(359, 59, 50);
+  const b = sec(0, 0, 10);
+  assert.equal(formatAngle(meanAngles([a, b])), '0°00′00″');
+  assert.equal(spreadAngles([a, b]), 20);
+  assert.equal(formatDelta(spreadAngles([a, b])), '20″');
+  assert.equal(angleSeparationSec(a, b), 20);
+  // 350° 与 10° 的平均为 0°
+  assert.equal(formatAngle(meanAngles([sec(350, 0, 0), sec(10, 0, 0)])), '0°00′00″');
+  // 普通角度不受影响
+  assert.equal(formatAngle(meanAngles([sec(125, 14, 18), sec(125, 14, 24)])), '125°14′21″');
+  assert.equal(spreadAngles([sec(125, 14, 18), sec(125, 14, 24)]), 6);
+});
+
+test('formatDetailedMeters 保留未取整到毫米的均值', () => {
+  assert.equal(formatDetailedMeters(114.55225), '114.55225');
+  assert.equal(formatDetailedMeters(59.2305), '59.2305');
+  assert.equal(formatDetailedMeters(59.23), '59.230');
+  assert.equal(formatDetailedMeters(distanceStats([55.269, 55.269, 55.271, 55.27]).mean), '55.26975');
 });
