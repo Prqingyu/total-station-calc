@@ -107,6 +107,11 @@ const leftValues = await page.evaluate(() => ({
 }));
 check('盘左第 1 测回读数 A 完整', leftValues.a.includes('0') && leftValues.a.includes('20') && leftValues.a.includes('42'), leftValues.a);
 check('距离框显示 59.230', leftValues.dist === '59.230', leftValues.dist);
+check(
+  '盘左第 1 测回半测回角值 125°14′18″',
+  (await page.textContent('#panel-left .round[data-index="0"] .round-angle')) === '125°14′18″',
+  await page.textContent('#panel-left .round[data-index="0"] .round-angle'),
+);
 await page.screenshot({ path: `${OUT}/${prefix}-02-left.png` });
 
 /* 盘右 */
@@ -117,6 +122,11 @@ await typeReading('right', 0, 'b', 305, 35, 36, '114.551');
 await typeReading('right', 1, 'a', 270, 11, 42, '59.231');
 await typeReading('right', 1, 'b', 35, 26, 12, '114.553');
 await page.waitForTimeout(150);
+check(
+  '盘右第 1 测回半测回角值 125°14′24″',
+  (await page.textContent('#panel-right .round[data-index="0"] .round-angle')) === '125°14′24″',
+  await page.textContent('#panel-right .round[data-index="0"] .round-angle'),
+);
 await page.screenshot({ path: `${OUT}/${prefix}-03-right.png` });
 
 /* 距离不截断 */
@@ -143,6 +153,12 @@ check(
   '各测回平均 125°14′24″',
   (await page.textContent('#sum-angle')) === '125°14′24″',
   await page.textContent('#sum-angle'),
+);
+const oneSetRows = await page.locator('#sum-one-sets .one-row').allInnerTexts();
+check(
+  '汇总两个一测回角值',
+  oneSetRows.length === 2 && oneSetRows[0].includes('125°14′21″') && oneSetRows[1].includes('125°14′27″'),
+  JSON.stringify(oneSetRows),
 );
 check('A 距离均值 59.230 m', (await page.textContent('#sum-dist-a')) === '59.230 m', await page.textContent('#sum-dist-a'));
 check('B 距离均值 114.552 m', (await page.textContent('#sum-dist-b')) === '114.552 m', await page.textContent('#sum-dist-b'));
