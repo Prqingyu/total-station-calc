@@ -1,9 +1,13 @@
 {
   "name": "total-station-calc",
   "version": "1.2.2",
-  "private": true,
+  "description": "全站仪测回计算器：盘左 / 盘右读数与距离，自动算各测回平均角（移动端 PWA）",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Prqingyu/total-station-calc.git"
+  },
   "type": "module",
-  "description": "全站仪测回计算器：盘左 / 盘右 / 距离平均（移动端 PWA）",
   "scripts": {
     "test": "node --test tests/calc.test.mjs",
     "serve": "node tools/serve.mjs",
