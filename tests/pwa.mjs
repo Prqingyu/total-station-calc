@@ -68,6 +68,12 @@ check(
   (await page.textContent('#sum-angle')) === '125°14′24″',
   await page.textContent('#sum-angle'),
 );
+const pwaOneSets = await page.locator('#sum-one-sets .one-row').allInnerTexts();
+check(
+  '示例两个一测回角值',
+  pwaOneSets.length === 2 && pwaOneSets[0].includes('125°14′21″') && pwaOneSets[1].includes('125°14′27″'),
+  JSON.stringify(pwaOneSets),
+);
 check('示例 A 距离 59.230 m', (await page.textContent('#sum-dist-a')) === '59.230 m');
 check('示例 B 距离 114.552 m', (await page.textContent('#sum-dist-b')) === '114.552 m');
 
