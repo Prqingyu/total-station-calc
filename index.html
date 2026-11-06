@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>测回计算器</title>
-  <meta name="description" content="全站仪测回计算：盘左、盘右、距离平均。" />
+  <meta name="description" content="全站仪测回计算器：盘左、盘右读数与距离，自动算各测回平均角和水平距离。" />
   <meta name="theme-color" content="#123b6d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -29,82 +29,41 @@
           <button type="button" class="icon-btn" id="btn-help" aria-label="说明">?</button>
         </div>
       </header>
-      <nav class="modes" role="tablist" aria-label="模式">
+      <nav class="modes" role="tablist" aria-label="页面">
         <button type="button" class="mode active" id="tab-left" data-tab="left" role="tab" aria-selected="true" aria-controls="panel-left">盘左</button>
         <button type="button" class="mode" id="tab-right" data-tab="right" role="tab" aria-selected="false" aria-controls="panel-right">盘右</button>
-        <button type="button" class="mode" id="tab-dist" data-tab="dist" role="tab" aria-selected="false" aria-controls="panel-dist">距离</button>
         <button type="button" class="mode" id="tab-summary" data-tab="summary" role="tab" aria-selected="false" aria-controls="panel-summary">汇总</button>
       </nav>
     </div>
 
     <main class="main">
-      <!-- 盘左 -->
       <section class="panel" id="panel-left" role="tabpanel" aria-labelledby="tab-left">
-        <div class="seg" role="group" aria-label="输入方式" data-mode-group="left">
-          <button type="button" data-mode="readings" class="active">读数</button>
-          <button type="button" data-mode="angles">角值</button>
-        </div>
-        <div class="face-display" data-result="left"><span>盘左平均</span><b>—</b></div>
-        <div class="round-list" data-list="left"></div>
+        <div class="round-list" data-face="left"></div>
         <div class="panel-actions">
           <button type="button" class="add-btn" data-add="left">＋ 测回</button>
-          <button type="button" class="text-btn" data-clear="left">清空</button>
         </div>
       </section>
 
-      <!-- 盘右 -->
       <section class="panel" id="panel-right" role="tabpanel" aria-labelledby="tab-right" hidden>
-        <div class="seg" role="group" aria-label="输入方式" data-mode-group="right">
-          <button type="button" data-mode="readings" class="active">读数</button>
-          <button type="button" data-mode="angles">角值</button>
-        </div>
-        <div class="face-display" data-result="right"><span>盘右平均</span><b>—</b></div>
-        <div class="round-list" data-list="right"></div>
+        <div class="round-list" data-face="right"></div>
         <div class="panel-actions">
           <button type="button" class="add-btn" data-add="right">＋ 测回</button>
-          <button type="button" class="text-btn" data-clear="right">清空</button>
         </div>
       </section>
 
-      <!-- 距离 -->
-      <section class="panel" id="panel-dist" role="tabpanel" aria-labelledby="tab-dist" hidden>
-        <div class="group-list" data-list="dist"></div>
-        <div class="panel-actions">
-          <button type="button" class="add-btn" id="btn-add-group">＋ 方向</button>
-          <button type="button" class="text-btn" data-clear="dist">清空</button>
-        </div>
-      </section>
-
-      <!-- 汇总 -->
       <section class="panel" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary" hidden>
         <div class="result-card">
-          <div class="result-eyebrow" id="sum-eyebrow">各测回平均</div>
-          <div class="result-value" id="sum-final">—</div>
+          <div class="result-eyebrow">各测回平均</div>
+          <div class="result-value" id="sum-angle">—</div>
         </div>
         <div class="card">
-          <h3>测回</h3>
-          <div id="sum-rounds" class="sum-rounds"></div>
-        </div>
-        <div class="card">
-          <h3>距离</h3>
-          <div id="sum-dist" class="sum-dist"></div>
-        </div>
-        <div class="card">
-          <h3>限差</h3>
-          <div id="sum-checks" class="checks"></div>
-        </div>
-        <div class="card">
-          <h3>记录</h3>
-          <div class="meta-grid">
-            <label><span>测站</span><input id="meta-station" type="text" autocomplete="off" /></label>
-            <label><span>目标 A</span><input id="meta-target-a" type="text" autocomplete="off" /></label>
-            <label><span>目标 B</span><input id="meta-target-b" type="text" autocomplete="off" /></label>
+          <h3>水平距离</h3>
+          <div class="sum-dist">
+            <div class="sum-dist-row"><span class="sd-name">A</span><b id="sum-dist-a">—</b></div>
+            <div class="sum-dist-row"><span class="sd-name">B</span><b id="sum-dist-b">—</b></div>
           </div>
         </div>
-        <div class="copy-actions">
-          <button type="button" class="btn-primary" id="btn-copy">复制结果</button>
-          <button type="button" class="btn-ghost" id="btn-share">分享</button>
-        </div>
+        <button type="button" class="btn-primary btn-wide" id="btn-new-station">新建测站</button>
       </section>
     </main>
 
@@ -144,15 +103,12 @@
       </div>
       <div class="sheet-body">
         <h3>输入</h3>
-        <p>点读数格子，用底部数字键盘输入。度按 → 跳到分；分、秒满两位自动跳；秒满两位自动到下一读数。</p>
-        <p>距离：点距离格，输入数字和“.”，按 → 到下一条。</p>
-        <h3>计算</h3>
-        <div class="formula">半测回角值 = (读数 B − 读数 A + 360°) mod 360°</div>
-        <div class="formula">一测回角值 = (盘左 + 盘右) ÷ 2</div>
-        <div class="formula">各测回平均值 = 各一测回的平均</div>
+        <p>点读数格子或距离框，用底部数字键盘输入。度按 → 到分；分、秒满两位自动跳；秒满两位自动到距离框；距离输入后按 → 下一条。</p>
+        <h3>测回</h3>
+        <p>默认两个测回，盘左、盘右分别输入；需要更多点“＋ 测回”。汇总页显示各测回平均角和水平距离；“新建测站”清空全部数值。</p>
         <h3>安装</h3>
         <p>Android：Chrome 菜单 → 添加到主屏幕。iPhone：Safari 分享 → 添加到主屏幕。首次打开后离线可用。</p>
-        <p class="sheet-foot">v1.1 · 观测记录以原始手簿为准。</p>
+        <p class="sheet-foot">v1.2 · 观测记录以原始手簿为准。</p>
       </div>
     </div>
   </div>
@@ -161,52 +117,28 @@
     <article class="round">
       <div class="round-head">
         <span class="round-no"></span>
-        <span class="round-angle"></span>
         <button type="button" class="btn-x btn-del" aria-label="删除该测回">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </div>
-      <div class="reading" data-reading="a">
-        <span class="reading-tag">读数 A</span>
+      <div class="read-row" data-target="a">
+        <span class="read-tag">A</span>
         <div class="dms">
           <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
           <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
           <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
         </div>
+        <button type="button" class="dist-cell" data-dist><span class="dist-val"></span><span class="dist-unit">m</span></button>
       </div>
-      <div class="reading" data-reading="b">
-        <span class="reading-tag">读数 B</span>
+      <div class="read-row" data-target="b">
+        <span class="read-tag">B</span>
         <div class="dms">
           <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
           <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
           <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
         </div>
+        <button type="button" class="dist-cell" data-dist><span class="dist-val"></span><span class="dist-unit">m</span></button>
       </div>
-      <div class="reading" data-reading="angle">
-        <span class="reading-tag">角值</span>
-        <div class="dms">
-          <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
-          <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
-          <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
-        </div>
-      </div>
-    </article>
-  </template>
-
-  <template id="tpl-group">
-    <article class="group">
-      <div class="group-head">
-        <input class="group-name" type="text" autocomplete="off" aria-label="方向名称" />
-        <button type="button" class="btn-x btn-del-group" aria-label="删除该方向">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-      <div class="dist-list"></div>
-      <div class="group-result">
-        <span class="gr-label">平均</span>
-        <span class="gr-value"><output class="dist-out">—</output><span class="unit-m">m</span></span>
-      </div>
-      <button type="button" class="add-mini add-item">＋ 测量</button>
     </article>
   </template>
 
