@@ -1,10 +1,9 @@
 /**
- * app.js —— 测回计算器交互层
- * 状态保存在 localStorage，输入即算；汇总口径与参考表格一致。
+ * app.js —— 测回计算器（数字键盘版）
+ * 盘左 / 盘右 / 距离 / 汇总，输入全部走底部数字键盘。
  */
 import {
   dmsFilled,
-  dmsValid,
   dmsPartsToSeconds,
   formatAngle,
   formatDelta,
@@ -13,15 +12,14 @@ import {
   spreadAngles,
   angleSeparationSec,
   formatMeters,
-  formatDetailedMeters,
   formatMm,
   parseDistance,
   distanceStats,
 } from './calc.js';
 
 const STORE_KEY = 'tscalc.v1';
-const LIMITS = { half: 40, round: 24 }; // DJ6 常用限差，仅作提示
 const TABS = ['left', 'right', 'dist', 'summary'];
+const LIMITS = { half: 40, round: 24 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -36,8 +34,8 @@ function createRound() {
   return { a: emptyDms(), b: emptyDms(), angle: emptyDms() };
 }
 
-function createGroup() {
-  return { name: '', items: [''] };
+function createGroup(name) {
+  return { name: name || '', items: [''] };
 }
 
 function defaultState() {
@@ -46,15 +44,14 @@ function defaultState() {
     meta: { station: '', targetA: '', targetB: '' },
     left: { mode: 'readings', rounds: [createRound()] },
     right: { mode: 'readings', rounds: [createRound()] },
-    dist: { groups: [createGroup()] },
+    dist: { groups: [createGroup('方向 1')] },
     tab: 'left',
   };
 }
 
 function normalizeState(raw) {
-  const base = defaultState();
-  if (!raw || typeof raw !== 'object') return base;
-  const out = base;
+  const out = defaultState();
+  if (!raw || typeof raw !== 'object') return out;
   if (raw.meta && typeof raw.meta === 'object') {
     out.meta = {
       station: String(raw.meta.station ?? ''),
@@ -64,21 +61,27 @@ function normalizeState(raw) {
   }
   for (const side of ['left', 'right']) {
     const src = raw[side] && typeof raw[side] === 'object' ? raw[side] : {};
-    const roundsSrc = Array.isArray(src.rounds) && src.rounds.length ? src.rounds : [createRound()];
+    const sourceRounds = Array.isArray(src.rounds) && src.rounds.length ? src.rounds : [createRound()];
     out[side] = {
       mode: src.mode === 'angles' ? 'angles' : 'readings',
-      rounds: roundsSrc.map((r) => ({
-        a: { ...emptyDms(), ...(r && r.a ? r.a : {}) },
-        b: { ...emptyDms(), ...(r && r.b ? r.b : {}) },
-        angle: { ...emptyDms(), ...(r && r.angle ? r.angle : {}) },
+      rounds: sourceRounds.map((round) => ({
+        a: { ...emptyDms(), ...(round && round.a ? round.a : {}) },
+        b: { ...emptyDms(), ...(round && round.b ? round.b : {}) },
+        angle: { ...emptyDms(), ...(round && round.angle ? round.angle : {}) },
       })),
     };
   }
   if (raw.dist && Array.isArray(raw.dist.groups) && raw.dist.groups.length) {
     out.dist = {
-      groups: raw.dist.groups.map((g) => ({
-        name: typeof g?.name === 'string' ? g.name : '',
-        items: Array.isArray(g?.items) && g.items.length ? g.items.map((v) => String(v ?? '')) : [''],
+      groups: raw.dist.groups.map((group, index) => ({
+        name:
+          typeof group?.name === 'string' && group.name.trim()
+            ? group.name
+            : `方向 ${index + 1}`,
+        items:
+          Array.isArray(group?.items) && group.items.length
+            ? group.items.map((value) => String(value ?? ''))
+            : [''],
       })),
     };
   }
@@ -97,6 +100,8 @@ function loadState() {
 
 let state = loadState();
 let activeTab = state.tab;
+let active = null;
+let keypadVisible = false;
 let saveTimer = null;
 
 function save() {
@@ -105,7 +110,7 @@ function save() {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
     } catch {
-      /* 隐私模式等场景忽略 */
+      /* ignore */
     }
   }, 120);
 }
@@ -119,14 +124,7 @@ function toast(message) {
   el.textContent = message;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1900);
-}
-
-function emptyLine(text) {
-  const p = document.createElement('p');
-  p.className = 'empty-line';
-  p.textContent = text;
-  return p;
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
 }
 
 function dms(d, m, s) {
@@ -163,8 +161,10 @@ function demoState() {
 
 function hasAnyData() {
   const roundsFilled = (side) =>
-    state[side].rounds.some((r) => ['a', 'b', 'angle'].some((key) => dmsFilled(r[key])));
-  const distFilled = state.dist.groups.some((g) => g.items.some((v) => String(v).trim() !== ''));
+    state[side].rounds.some((round) => ['a', 'b', 'angle'].some((key) => dmsFilled(round[key])));
+  const distFilled = state.dist.groups.some((group) =>
+    group.items.some((value) => String(value).trim() !== ''),
+  );
   return (
     roundsFilled('left') ||
     roundsFilled('right') ||
@@ -181,202 +181,470 @@ function computeRound(side, round) {
 }
 
 function computeSummary() {
-  const leftAngles = state.left.rounds.map((r) => computeRound('left', r));
-  const rightAngles = state.right.rounds.map((r) => computeRound('right', r));
-  const leftAvg = meanAngles(leftAngles.filter((v) => v != null));
-  const rightAvg = meanAngles(rightAngles.filter((v) => v != null));
+  const leftAngles = state.left.rounds.map((round) => computeRound('left', round));
+  const rightAngles = state.right.rounds.map((round) => computeRound('right', round));
+  const leftAvg = meanAngles(leftAngles.filter((value) => value != null));
+  const rightAvg = meanAngles(rightAngles.filter((value) => value != null));
 
   const rows = [];
-  const n = Math.max(leftAngles.length, rightAngles.length);
-  for (let i = 0; i < n; i += 1) {
-    const l = leftAngles[i];
-    const r = rightAngles[i];
-    const hasLeft = l != null;
-    const hasRight = r != null;
+  const count = Math.max(leftAngles.length, rightAngles.length);
+  for (let i = 0; i < count; i += 1) {
+    const left = leftAngles[i];
+    const right = rightAngles[i];
+    const hasLeft = left != null;
+    const hasRight = right != null;
     if (!hasLeft && !hasRight) continue;
-    const one = hasLeft && hasRight ? meanAngles([l, r]) : null;
-    const diff = hasLeft && hasRight ? angleSeparationSec(l, r) : null;
-    rows.push({ index: i, left: hasLeft ? l : null, right: hasRight ? r : null, one, diff });
+    rows.push({
+      index: i,
+      left: hasLeft ? left : null,
+      right: hasRight ? right : null,
+      one: hasLeft && hasRight ? meanAngles([left, right]) : null,
+    });
   }
 
-  const paired = rows.filter((row) => row.one != null);
-  const oneSets = paired.map((row) => row.one);
+  const oneSets = rows.filter((row) => row.one != null).map((row) => row.one);
   const final = oneSets.length ? meanAngles(oneSets) : (leftAvg ?? rightAvg);
   const faceDiff =
     leftAvg != null && rightAvg != null ? angleSeparationSec(leftAvg, rightAvg) : null;
-  const maxHalfDiff = paired.length ? Math.max(...paired.map((row) => row.diff)) : null;
+  const halfDiffs = rows
+    .filter((row) => row.left != null && row.right != null)
+    .map((row) => angleSeparationSec(row.left, row.right));
+  const maxHalfDiff = halfDiffs.length ? Math.max(...halfDiffs) : null;
   const oneSpread = spreadAngles(oneSets);
 
-  return { leftAvg, rightAvg, rows, paired, oneSets, final, faceDiff, maxHalfDiff, oneSpread };
+  return { leftAvg, rightAvg, rows, oneSets, final, faceDiff, maxHalfDiff, oneSpread };
 }
 
-/* ---------------- 输入处理 ---------------- */
+/* ---------------- 键盘槽位 ---------------- */
 
-function sanitizePart(raw, part) {
-  let v = String(raw).replace(/[^\d.]/g, '');
-  if (part !== 's') return v.replace(/\./g, '').slice(0, part === 'd' ? 3 : 2);
-  const [intPart, ...rest] = v.split('.');
-  let out = intPart.slice(0, 2);
-  if (v.includes('.')) out += '.' + rest.join('').slice(0, 2);
-  if (out.startsWith('.')) out = '0' + out;
-  return out.slice(0, 5);
-}
-
-function normalizePart(value, part) {
-  const v = String(value).trim();
-  if (!v) return '';
-  if (part === 's') {
-    const num = Number(v.replace(',', '.'));
-    return Number.isFinite(num) ? String(num) : v;
+function getSlots() {
+  if (activeTab === 'left' || activeTab === 'right') {
+    const side = activeTab;
+    const roles = state[side].mode === 'angles' ? ['angle'] : ['a', 'b'];
+    const slots = [];
+    state[side].rounds.forEach((_, roundIndex) => {
+      roles.forEach((role) => {
+        ['d', 'm', 's'].forEach((part) => {
+          slots.push({ kind: 'angle', side, roundIndex, role, part });
+        });
+      });
+    });
+    return slots;
   }
-  const num = Number(v);
-  return Number.isFinite(num) ? String(num) : v;
-}
-
-function sanitizeDistance(raw) {
-  let v = String(raw).replace(/[^\d.]/g, '');
-  const [intPart, ...rest] = v.split('.');
-  let out = intPart.slice(0, 5);
-  if (v.includes('.')) out += '.' + rest.join('').slice(0, 4);
-  if (out.startsWith('.')) out = '0' + out;
-  return out.slice(0, 10);
-}
-
-function parseDmsText(text) {
-  if (!text) return null;
-  const normalized = String(text)
-    .replace(/[°度]/g, ' ')
-    .replace(/[′'’分]/g, ' ')
-    .replace(/[″"”秒]/g, ' ')
-    .replace(/[，,：:]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const nums = normalized.match(/\d+(?:\.\d+)?/g);
-  if (!nums) return null;
-  if (nums.length >= 3) {
-    return { d: nums[0], m: nums[1], s: nums[2] };
+  if (activeTab === 'dist') {
+    const slots = [];
+    state.dist.groups.forEach((group, groupIndex) => {
+      group.items.forEach((_, itemIndex) => {
+        slots.push({ kind: 'dist', groupIndex, itemIndex });
+      });
+    });
+    return slots;
   }
-  if (nums.length === 1 && nums[0].includes('.')) {
-    const v = Number(nums[0]);
-    if (!Number.isFinite(v) || v < 0 || v >= 360) return null;
-    const d = Math.floor(v);
-    const mf = (v - d) * 60;
-    const m = Math.floor(mf);
-    const s = Math.round((mf - m) * 60 * 100) / 100;
-    return { d: String(d), m: String(m), s: String(s) };
+  return [];
+}
+
+function sameSlot(a, b) {
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === 'angle') {
+    return (
+      a.side === b.side &&
+      a.roundIndex === b.roundIndex &&
+      a.role === b.role &&
+      a.part === b.part
+    );
+  }
+  return a.groupIndex === b.groupIndex && a.itemIndex === b.itemIndex;
+}
+
+function firstIncompleteSlot() {
+  for (const slot of getSlots()) {
+    if (slot.kind === 'angle') {
+      const round = state[slot.side].rounds[slot.roundIndex];
+      const obj = round ? round[slot.role] : null;
+      if (obj && !obj[slot.part]) return slot;
+    } else {
+      const group = state.dist.groups[slot.groupIndex];
+      const value = group ? group.items[slot.itemIndex] : '';
+      if (!String(value ?? '').trim()) return slot;
+    }
   }
   return null;
 }
 
-function autoAdvance(inp, part) {
-  const dmsEl = inp.closest('.dms');
-  if (!dmsEl) return;
-  const inputs = $$('input', dmsEl);
-  const idx = inputs.indexOf(inp);
-  if (part === 'd' && inp.value.length >= 3) inputs[idx + 1]?.focus();
-  else if (part === 'm' && inp.value.length >= 2) inputs[idx + 1]?.focus();
+function getAngleObj(slot) {
+  const round = state[slot.side].rounds[slot.roundIndex];
+  return round ? round[slot.role] : null;
 }
 
-function focusNextInput(inp, node) {
-  const inputs = $$('input', node).filter((el) => el.offsetParent !== null);
-  const idx = inputs.indexOf(inp);
-  const next = inputs[idx + 1] ?? inputs[0];
-  next?.focus();
+function prevSlot(slot) {
+  const slots = getSlots();
+  const index = slots.findIndex((item) => sameSlot(item, slot));
+  return index > 0 ? slots[index - 1] : null;
 }
 
-function refreshReading(row, obj) {
-  row.classList.toggle('invalid', dmsFilled(obj) && !dmsValid(obj));
+function nextSlot(slot) {
+  const slots = getSlots();
+  const index = slots.findIndex((item) => sameSlot(item, slot));
+  return index >= 0 ? slots[index + 1] || null : null;
 }
 
-function refreshRoundAngle(side, round, node) {
-  const out = $('.round-foot output', node);
-  if (!out) return;
-  const angle = computeRound(side, round);
-  out.textContent = angle == null ? '—' : formatAngle(angle);
-  out.classList.toggle('empty', angle == null);
-  const warn = $('.round-warn', node);
-  if (warn) {
-    warn.hidden = !(state[side].mode === 'readings' && angle != null && angle > 180 * 3600);
+function activeElement() {
+  if (!active) return null;
+  if (active.kind === 'angle') {
+    return $(
+      `#panel-${active.side} .round[data-index="${active.roundIndex}"] ` +
+        `.reading[data-reading="${active.role}"] .cell[data-part="${active.part}"]`,
+    );
+  }
+  return $(
+    `#panel-dist .group[data-gindex="${active.groupIndex}"] ` +
+      `.dist-item[data-iindex="${active.itemIndex}"] .dist-val`,
+  );
+}
+
+function syncActive() {
+  $$('.cell.active, .dist-val.active').forEach((el) => el.classList.remove('active'));
+  const el = activeElement();
+  if (el) el.classList.add('active');
+}
+
+function scrollActive() {
+  requestAnimationFrame(() => {
+    const el = activeElement();
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+}
+
+function selectSlot(slot) {
+  active = { ...slot };
+  syncActive();
+  updateCaption();
+  scrollActive();
+}
+
+function activateSlot(slot) {
+  openKeypad();
+  selectSlot(slot);
+}
+
+function openKeypad() {
+  if (keypadVisible) return;
+  keypadVisible = true;
+  $('#keypad').hidden = false;
+  $('#app').classList.add('keypad-open');
+  document.body.classList.add('keypad-open');
+}
+
+function closeKeypad() {
+  if (!keypadVisible) return;
+  keypadVisible = false;
+  $('#keypad').hidden = true;
+  $('#app').classList.remove('keypad-open');
+  document.body.classList.remove('keypad-open');
+  active = null;
+  syncActive();
+}
+
+function updateCaption() {
+  const caption = $('#keypad-caption');
+  if (!active) {
+    caption.textContent = '';
+    return;
+  }
+  if (active.kind === 'angle') {
+    const sideLabel = active.side === 'left' ? '盘左' : '盘右';
+    const roleLabel = active.role === 'angle' ? '角值' : `读数 ${active.role.toUpperCase()}`;
+    caption.textContent = `${sideLabel} · 测回 ${active.roundIndex + 1} · ${roleLabel}`;
+  } else {
+    const group = state.dist.groups[active.groupIndex];
+    const name = group?.name || `方向 ${active.groupIndex + 1}`;
+    caption.textContent = `${name} · 第 ${active.itemIndex + 1} 条`;
   }
 }
 
-/* ---------------- 测回卡片 ---------------- */
+function advance() {
+  const next = nextSlot(active);
+  if (next) {
+    selectSlot(next);
+    return;
+  }
+  const first = firstIncompleteSlot();
+  if (first && !sameSlot(first, active)) selectSlot(first);
+}
+
+/* ---------------- 角度输入 ---------------- */
+
+function partValid(part, value) {
+  if (value === '' || value == null) return true;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return false;
+  return part === 'd' ? number <= 359 : number <= 59;
+}
+
+function cellText(part, value) {
+  if (value == null || value === '') return '';
+  if (part === 'm' || part === 's') return value.padStart(2, '0');
+  return value;
+}
+
+function refreshAngleReading(side, roundIndex, role) {
+  const roundEl = $(`#panel-${side} .round[data-index="${roundIndex}"]`);
+  if (!roundEl) return;
+  const round = state[side].rounds[roundIndex];
+  const obj = round ? round[role] : null;
+  if (!obj) return;
+
+  const row = roundEl.querySelector(`.reading[data-reading="${role}"]`);
+  if (row) {
+    ['d', 'm', 's'].forEach((part) => {
+      const cell = row.querySelector(`.cell[data-part="${part}"]`);
+      if (!cell) return;
+      const valueEl = cell.querySelector('.cell-val');
+      if (valueEl) valueEl.textContent = cellText(part, obj[part]);
+      cell.classList.toggle('invalid', obj[part] !== '' && !partValid(part, obj[part]));
+    });
+  }
+
+  if (state[side].mode === 'readings') {
+    const angle = computeRound(side, round);
+    const angleEl = roundEl.querySelector('.round-angle');
+    if (angleEl) {
+      angleEl.textContent = angle == null ? '' : formatAngle(angle);
+      angleEl.classList.toggle('warn', angle != null && angle > 180 * 3600);
+    }
+  }
+
+  updateFaceResult(side);
+  renderSummary();
+  save();
+}
+
+function updateFaceResult(side) {
+  const panel = $(`#panel-${side}`);
+  if (!panel) return;
+  const angles = state[side].rounds
+    .map((round) => computeRound(side, round))
+    .filter((value) => value != null);
+  const avg = meanAngles(angles);
+  $('.face-display b', panel).textContent = avg == null ? '—' : formatAngle(avg);
+}
+
+function handleAngleKey(key) {
+  if (!active || active.kind !== 'angle') return;
+  const slot = active;
+  const obj = getAngleObj(slot);
+  if (!obj) return;
+
+  if (key === 'clear') {
+    obj.d = '';
+    obj.m = '';
+    obj.s = '';
+    slot.part = 'd';
+    refreshAngleReading(slot.side, slot.roundIndex, slot.role);
+    selectSlot(slot);
+    return;
+  }
+
+  if (key === 'next') {
+    advance();
+    return;
+  }
+
+  if (key === 'back') {
+    if (obj[slot.part]) {
+      obj[slot.part] = obj[slot.part].slice(0, -1);
+      refreshAngleReading(slot.side, slot.roundIndex, slot.role);
+    } else {
+      const prev = prevSlot(slot);
+      if (prev) selectSlot(prev);
+    }
+    return;
+  }
+
+  if (key === 'dot') return;
+  if (!/^\d$/.test(key) && key !== '00') return;
+
+  const max = slot.part === 'd' ? 3 : 2;
+  const current = obj[slot.part] || '';
+  const addition = key === '00' ? '00' : key;
+  const nextValue = (current + addition).slice(0, max);
+  if (nextValue === current) return;
+
+  obj[slot.part] = nextValue;
+  refreshAngleReading(slot.side, slot.roundIndex, slot.role);
+
+  if (partValid(slot.part, nextValue) && nextValue.length >= max) {
+    advance();
+  }
+}
+
+/* ---------------- 距离输入 ---------------- */
+
+function validDistanceText(value) {
+  return /^\d{0,5}(?:\.\d{0,4})?$/.test(value);
+}
+
+function refreshDistItem(groupIndex, itemIndex) {
+  const groupEl = $(`#panel-dist .group[data-gindex="${groupIndex}"]`);
+  if (!groupEl) return;
+  const group = state.dist.groups[groupIndex];
+  if (!group) return;
+  const itemEl = groupEl.querySelector(`.dist-item[data-iindex="${itemIndex}"]`);
+  if (itemEl) {
+    const num = itemEl.querySelector('.dist-num');
+    if (num) num.textContent = group.items[itemIndex];
+  }
+  const stats = distanceStats(group.items.map(parseDistance));
+  const out = groupEl.querySelector('.dist-out');
+  if (out) out.textContent = stats ? formatMeters(stats.mean) : '—';
+  renderSummary();
+  save();
+}
+
+function handleDistKey(key) {
+  if (!active || active.kind !== 'dist') return;
+  const group = state.dist.groups[active.groupIndex];
+  if (!group) return;
+  const index = active.itemIndex;
+  let value = String(group.items[index] ?? '');
+
+  if (key === 'clear') {
+    group.items[index] = '';
+    refreshDistItem(active.groupIndex, index);
+    return;
+  }
+
+  if (key === 'next') {
+    advance();
+    return;
+  }
+
+  if (key === 'back') {
+    if (value) {
+      group.items[index] = value.slice(0, -1);
+      refreshDistItem(active.groupIndex, index);
+    } else {
+      const prev = prevSlot(active);
+      if (prev && prev.kind === 'dist') selectSlot(prev);
+    }
+    return;
+  }
+
+  if (key === 'dot') {
+    if (!value.includes('.')) {
+      const nextValue = value === '' ? '0.' : `${value}.`;
+      if (validDistanceText(nextValue)) {
+        group.items[index] = nextValue;
+        refreshDistItem(active.groupIndex, index);
+      }
+    }
+    return;
+  }
+
+  if (!/^\d$/.test(key) && key !== '00') return;
+  const nextValue = value + (key === '00' ? '00' : key);
+  if (validDistanceText(nextValue)) {
+    group.items[index] = nextValue;
+    refreshDistItem(active.groupIndex, index);
+  }
+}
+
+/* ---------------- 键盘总入口 ---------------- */
+
+function handleKey(key) {
+  if (key === 'done') {
+    closeKeypad();
+    return;
+  }
+  if (!active) {
+    const first = firstIncompleteSlot() || getSlots()[0];
+    if (!first) return;
+    activateSlot(first);
+  }
+  if (!active) return;
+  if (active.kind === 'angle') handleAngleKey(key);
+  else if (active.kind === 'dist') handleDistKey(key);
+  syncActive();
+  updateCaption();
+  save();
+}
+
+function bindKeypad() {
+  $('.keypad-grid').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-key]');
+    if (!button) return;
+    handleKey(button.dataset.key);
+  });
+  $('#keypad-hide').addEventListener('click', closeKeypad);
+
+  document.addEventListener('keydown', (event) => {
+    if (!keypadVisible) return;
+    if (event.target.closest('input, textarea')) return;
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      handleKey(event.key);
+    } else if (event.key === 'Backspace') {
+      event.preventDefault();
+      handleKey('back');
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      handleKey('next');
+    } else if (event.key === '.') {
+      event.preventDefault();
+      handleKey('dot');
+    } else if (event.key === 'Escape') {
+      closeKeypad();
+    }
+  });
+}
+
+/* ---------------- 渲染：测回 ---------------- */
 
 const roundTpl = $('#tpl-round');
 
-function bindDmsInput(inp, ctx) {
-  const { side, round, obj, row, node } = ctx;
-  const part = inp.dataset.part;
-  inp.value = obj[part] ?? '';
-
-  inp.addEventListener('input', () => {
-    inp.value = sanitizePart(inp.value, part);
-    obj[part] = inp.value;
-    refreshReading(row, obj);
-    refreshRoundAngle(side, round, node);
-    updateFaceResult(side);
-    renderSummary();
-    save();
-    autoAdvance(inp, part);
-  });
-
-  inp.addEventListener('blur', () => {
-    inp.value = normalizePart(inp.value, part);
-    obj[part] = inp.value;
-    refreshReading(row, obj);
-    refreshRoundAngle(side, round, node);
-    updateFaceResult(side);
-    renderSummary();
-    save();
-  });
-
-  inp.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      focusNextInput(inp, node);
-    }
-  });
-
-  inp.addEventListener('paste', (event) => {
-    const text = event.clipboardData?.getData('text') ?? '';
-    const parsed = parseDmsText(text);
-    if (!parsed) return;
-    event.preventDefault();
-    obj.d = parsed.d;
-    obj.m = parsed.m;
-    obj.s = parsed.s;
-    const inputs = $$('input', row);
-    inputs[0].value = obj.d;
-    inputs[1].value = obj.m;
-    inputs[2].value = obj.s;
-    refreshReading(row, obj);
-    refreshRoundAngle(side, round, node);
-    updateFaceResult(side);
-    renderSummary();
-    save();
-  });
-}
-
 function buildRound(side, round, index) {
   const node = roundTpl.content.firstElementChild.cloneNode(true);
-  $('.round-no', node).textContent = `测回 ${index + 1}`;
+  node.dataset.index = String(index);
+  node.querySelector('.round-no').textContent = `测回 ${index + 1}`;
 
-  $('.btn-del', node).addEventListener('click', () => {
+  if (state[side].mode === 'readings') {
+    const angle = computeRound(side, round);
+    const angleEl = node.querySelector('.round-angle');
+    angleEl.textContent = angle == null ? '' : formatAngle(angle);
+    angleEl.classList.toggle('warn', angle != null && angle > 180 * 3600);
+  }
+
+  node.querySelector('.btn-del').addEventListener('click', () => {
     const rounds = state[side].rounds;
     if (rounds.length <= 1) rounds[0] = createRound();
     else rounds.splice(index, 1);
+    active = null;
     renderFace(side);
     renderSummary();
     save();
+    if (keypadVisible) {
+      const first = firstIncompleteSlot();
+      if (first) selectSlot(first);
+      else closeKeypad();
+    }
   });
 
-  for (const role of ['a', 'b', 'angle']) {
-    const row = $(`.reading[data-reading="${role}"]`, node);
-    const obj = round[role];
-    $$('input', row).forEach((inp) => bindDmsInput(inp, { side, round, obj, row, node, role }));
-    refreshReading(row, obj);
-  }
-  refreshRoundAngle(side, round, node);
+  ['a', 'b', 'angle'].forEach((role) => {
+    const row = node.querySelector(`.reading[data-reading="${role}"]`);
+    if (!row) return;
+    ['d', 'm', 's'].forEach((part) => {
+      const cell = row.querySelector(`.cell[data-part="${part}"]`);
+      if (!cell) return;
+      const valueEl = cell.querySelector('.cell-val');
+      const obj = round[role];
+      valueEl.textContent = cellText(part, obj[part]);
+      cell.classList.toggle('invalid', obj[part] !== '' && !partValid(part, obj[part]));
+      cell.addEventListener('click', () => {
+        activateSlot({ kind: 'angle', side, roundIndex: index, role, part });
+      });
+    });
+  });
+
   return node;
 }
 
@@ -384,78 +652,46 @@ function renderFace(side) {
   const panel = $(`#panel-${side}`);
   if (!panel) return;
   panel.classList.toggle('mode-angles', state[side].mode === 'angles');
-  $$('[data-mode]', panel).forEach((btn) => {
-    const on = btn.dataset.mode === state[side].mode;
-    btn.classList.toggle('active', on);
-    btn.setAttribute('aria-pressed', String(on));
+  $$('[data-mode]', panel).forEach((button) => {
+    const on = button.dataset.mode === state[side].mode;
+    button.classList.toggle('active', on);
+    button.setAttribute('aria-pressed', String(on));
   });
   const list = $('.round-list', panel);
-  list.replaceChildren(...state[side].rounds.map((round, i) => buildRound(side, round, i)));
+  list.replaceChildren(...state[side].rounds.map((round, index) => buildRound(side, round, index)));
   updateFaceResult(side);
 }
 
-function updateFaceResult(side) {
-  const panel = $(`#panel-${side}`);
-  if (!panel) return;
-  const angles = state[side].rounds.map((round) => computeRound(side, round)).filter((v) => v != null);
-  const avg = meanAngles(angles);
-
-  $('.result-value', panel).textContent = avg == null ? '—' : formatAngle(avg);
-
-  const total = state[side].rounds.length;
-  const missing = total - angles.length;
-  const bits = [];
-  if (angles.length === 0) {
-    bits.push(state[side].mode === 'angles' ? '输入角值后自动平均' : '输入读数后自动计算');
-  } else {
-    bits.push(`共 ${angles.length} 测回${missing > 0 ? `，${missing} 个未填完` : ''}`);
-    if (angles.length > 1) {
-      const range = spreadAngles(angles);
-      if (range != null) bits.push(`测回间较差 ${formatDelta(range)}`);
-    }
-  }
-  $('.result-sub', panel).textContent = bits.join(' · ');
-
-  const label = side === 'left' ? '盘左' : '盘右';
-  $('.result-eyebrow', panel).textContent =
-    state[side].mode === 'angles' ? `${label}角值直接平均` : `${label}平均角值`;
-}
-
-/* ---------------- 距离分组 ---------------- */
+/* ---------------- 渲染：距离 ---------------- */
 
 const groupTpl = $('#tpl-group');
 
-function buildDistItem(group, index, groupNode) {
+function buildDistItem(group, groupIndex, itemIndex) {
   const row = document.createElement('div');
   row.className = 'dist-item';
+  row.dataset.iindex = String(itemIndex);
   row.innerHTML =
-    '<label class="dist-box"><input inputmode="decimal" placeholder="如 59.230" aria-label="水平距离（米）" /><span>m</span></label>' +
-    '<button type="button" class="btn-x" aria-label="删除该测量"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
-  const input = $('input', row);
-  input.value = group.items[index] ?? '';
+    '<button type="button" class="dist-val"><span class="dist-num"></span><span class="dist-unit">m</span></button>' +
+    '<button type="button" class="btn-x" aria-label="删除该测量"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
 
-  input.addEventListener('input', () => {
-    input.value = sanitizeDistance(input.value);
-    group.items[index] = input.value;
-    updateGroupResult(group, groupNode);
-    renderSummary();
-    save();
+  const value = group.items[itemIndex] ?? '';
+  row.querySelector('.dist-num').textContent = value;
+  const valueButton = row.querySelector('.dist-val');
+  valueButton.addEventListener('click', () => {
+    activateSlot({ kind: 'dist', groupIndex, itemIndex });
   });
 
-  input.addEventListener('blur', () => {
-    input.value = input.value.trim();
-    group.items[index] = input.value;
-    updateGroupResult(group, groupNode);
-    renderSummary();
-    save();
-  });
-
-  $('.btn-x', row).addEventListener('click', () => {
-    group.items[index] = input.value;
+  row.querySelector('.btn-x').addEventListener('click', () => {
     if (group.items.length <= 1) group.items[0] = '';
-    else group.items.splice(index, 1);
+    else group.items.splice(itemIndex, 1);
+    active = null;
     renderDist();
     save();
+    if (keypadVisible) {
+      const first = firstIncompleteSlot();
+      if (first) selectSlot(first);
+      else closeKeypad();
+    }
   });
 
   return row;
@@ -463,48 +699,48 @@ function buildDistItem(group, index, groupNode) {
 
 function updateGroupResult(group, node) {
   const stats = distanceStats(group.items.map(parseDistance));
-  const out = $('.dist-out', node);
-  const sub = $('.group-sub', node);
-  if (!stats) {
-    out.textContent = '—';
-    sub.textContent = '输入后自动平均';
-    return;
-  }
-  const shown = formatMeters(stats.mean);
-  out.textContent = shown;
-  const exact = formatDetailedMeters(stats.mean);
-  const bits = [`${stats.count} 次`];
-  if (stats.count > 1) bits.push(`极差 ${formatMm(stats.rangeMm)} mm`);
-  if (exact !== shown) bits.push(`精确 ${exact} m`);
-  sub.textContent = bits.join(' · ');
+  const out = node.querySelector('.dist-out');
+  if (out) out.textContent = stats ? formatMeters(stats.mean) : '—';
 }
 
 function buildGroup(group, index) {
   const node = groupTpl.content.firstElementChild.cloneNode(true);
-  const nameInput = $('.group-name', node);
+  node.dataset.gindex = String(index);
+
+  const nameInput = node.querySelector('.group-name');
   nameInput.value = group.name;
+  nameInput.addEventListener('focus', () => {
+    if (keypadVisible) closeKeypad();
+  });
   nameInput.addEventListener('input', () => {
     group.name = nameInput.value;
-    renderSummary();
+    updateCaption();
     save();
   });
 
-  $('.btn-del-group', node).addEventListener('click', () => {
-    if (state.dist.groups.length <= 1) state.dist.groups[0] = createGroup();
+  node.querySelector('.btn-del-group').addEventListener('click', () => {
+    if (state.dist.groups.length <= 1) state.dist.groups[0] = createGroup('方向 1');
     else state.dist.groups.splice(index, 1);
+    active = null;
     renderDist();
     save();
+    if (keypadVisible) {
+      const first = firstIncompleteSlot();
+      if (first) selectSlot(first);
+      else closeKeypad();
+    }
   });
 
-  const list = $('.dist-list', node);
-  group.items.forEach((_, j) => list.appendChild(buildDistItem(group, j, node)));
+  const list = node.querySelector('.dist-list');
+  group.items.forEach((_, itemIndex) => {
+    list.appendChild(buildDistItem(group, index, itemIndex));
+  });
 
-  $('.add-item', node).addEventListener('click', () => {
+  node.querySelector('.add-item').addEventListener('click', () => {
     group.items.push('');
-    list.appendChild(buildDistItem(group, group.items.length - 1, node));
+    renderDist();
     save();
-    const inputs = $$('input', list);
-    inputs[inputs.length - 1]?.focus();
+    activateSlot({ kind: 'dist', groupIndex: index, itemIndex: group.items.length - 1 });
   });
 
   updateGroupResult(group, node);
@@ -514,146 +750,99 @@ function buildGroup(group, index) {
 function renderDist() {
   const list = $('.group-list[data-list="dist"]');
   if (!list) return;
-  list.replaceChildren(...state.dist.groups.map((group, i) => buildGroup(group, i)));
+  list.replaceChildren(...state.dist.groups.map((group, index) => buildGroup(group, index)));
   renderSummary();
 }
 
-/* ---------------- 汇总 ---------------- */
+/* ---------------- 渲染：汇总 ---------------- */
 
 function buildSummaryRound(row) {
-  const box = document.createElement('div');
-  box.className = 'sum-round';
-
-  const head = document.createElement('div');
-  head.className = 'sr-head';
-  const title = document.createElement('span');
-  title.textContent = `测回 ${row.index + 1}`;
-  head.appendChild(title);
-  if (row.diff != null) {
-    const em = document.createElement('em');
-    em.textContent = `互差 ${formatDelta(row.diff)}`;
-    head.appendChild(em);
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'sr-grid';
-  const cell = (label, value) => {
-    const wrap = document.createElement('div');
+  const node = document.createElement('div');
+  node.className = 'sum-round';
+  const number = document.createElement('span');
+  number.className = 'sr-no';
+  number.textContent = `测回 ${row.index + 1}`;
+  const cell = (value) => {
     const span = document.createElement('span');
-    span.textContent = label;
-    const b = document.createElement('b');
-    b.textContent = value;
-    wrap.append(span, b);
-    return wrap;
+    span.className = 'sr-val';
+    span.textContent = value != null ? formatAngle(value) : '—';
+    return span;
   };
-  grid.append(
-    cell('盘左', row.left != null ? formatAngle(row.left) : '—'),
-    cell('盘右', row.right != null ? formatAngle(row.right) : '—'),
-    cell('一测回', row.one != null ? formatAngle(row.one) : '—'),
-  );
-
-  box.append(head, grid);
-  return box;
-}
-
-function checkRow(label, value, status, badgeText) {
-  const row = document.createElement('div');
-  row.className = 'check';
-  const left = document.createElement('span');
-  left.className = 'check-label';
-  left.textContent = label;
-  const right = document.createElement('span');
-  right.className = 'check-value';
-  const val = document.createElement('span');
-  val.textContent = value;
-  const badge = document.createElement('span');
-  badge.className = status === 'ok' ? 'badge-ok' : status === 'bad' ? 'badge-bad' : 'badge-na';
-  badge.textContent = badgeText;
-  right.append(val, badge);
-  row.append(left, right);
-  return row;
+  node.append(number, cell(row.left), cell(row.right), cell(row.one));
+  return node;
 }
 
 function renderSummary() {
   const sum = computeSummary();
 
   $('#sum-final').textContent = sum.final != null ? formatAngle(sum.final) : '—';
-  $('#panel-summary .result-card .result-eyebrow').textContent = sum.oneSets.length
-    ? '各测回平均值'
-    : '单盘平均';
-  let sub;
-  if (sum.oneSets.length) {
-    sub = `由 ${sum.oneSets.length} 个一测回平均`;
-    if (state.left.rounds.length !== state.right.rounds.length) {
-      sub += `（盘左 ${state.left.rounds.length} / 盘右 ${state.right.rounds.length} 测回，仅按已配对测回计算）`;
-    }
-  } else if (sum.leftAvg != null || sum.rightAvg != null) {
-    sub = '缺少另一盘数据，暂按单盘平均';
-  } else {
-    sub = '先在盘左、盘右中输入读数';
-  }
-  $('#sum-final-sub').textContent = sub;
+  $('#sum-eyebrow').textContent = sum.oneSets.length
+    ? '各测回平均'
+    : sum.final != null
+      ? '单盘平均'
+      : '各测回平均';
 
-  $('#sum-left').textContent = sum.leftAvg != null ? formatAngle(sum.leftAvg) : '—';
-  $('#sum-right').textContent = sum.rightAvg != null ? formatAngle(sum.rightAvg) : '—';
-  $('#sum-diff').textContent = sum.faceDiff != null ? formatDelta(sum.faceDiff) : '—';
-
-  const roundsWrap = $('#sum-rounds');
-  roundsWrap.replaceChildren();
+  const rounds = $('#sum-rounds');
+  rounds.replaceChildren();
   if (!sum.rows.length) {
-    roundsWrap.appendChild(emptyLine('还没有测回数据。在盘左或盘右里输入读数后，这里会按测回列出。'));
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = '—';
+    rounds.appendChild(empty);
   } else {
-    sum.rows.forEach((row) => roundsWrap.appendChild(buildSummaryRound(row)));
+    const head = document.createElement('div');
+    head.className = 'sum-head';
+    ['', '左', '右', '一'].forEach((label) => {
+      const span = document.createElement('span');
+      span.textContent = label;
+      head.appendChild(span);
+    });
+    rounds.appendChild(head);
+    sum.rows.forEach((row) => rounds.appendChild(buildSummaryRound(row)));
   }
 
   const checks = $('#sum-checks');
   checks.replaceChildren();
-  checks.appendChild(
-    checkRow(
-      `半测回互差最大值（≤${LIMITS.half}″）`,
-      sum.maxHalfDiff != null ? formatDelta(sum.maxHalfDiff) : '—',
-      sum.maxHalfDiff == null ? 'na' : sum.maxHalfDiff <= LIMITS.half ? 'ok' : 'bad',
-      sum.maxHalfDiff == null ? '—' : sum.maxHalfDiff <= LIMITS.half ? '通过' : '注意',
-    ),
-  );
-  checks.appendChild(
-    checkRow(
-      `各测回互差（≤${LIMITS.round}″）`,
-      sum.oneSpread != null ? formatDelta(sum.oneSpread) : '—',
-      sum.oneSpread == null ? 'na' : sum.oneSpread <= LIMITS.round ? 'ok' : 'bad',
-      sum.oneSpread == null ? '—' : sum.oneSpread <= LIMITS.round ? '通过' : '注意',
-    ),
-  );
-  const countsMatch = state.left.rounds.length === state.right.rounds.length;
-  checks.appendChild(
-    checkRow(
-      '盘左 / 盘右测回数',
-      `${state.left.rounds.length} / ${state.right.rounds.length}`,
-      countsMatch ? 'ok' : 'bad',
-      countsMatch ? '一致' : '不一致',
-    ),
-  );
+  const checkItems = [
+    { label: '半测回互差', value: sum.maxHalfDiff, limit: LIMITS.half },
+    { label: '各测回互差', value: sum.oneSpread, limit: LIMITS.round },
+  ];
+  checkItems.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'check';
+    const label = document.createElement('span');
+    label.textContent = item.label;
+    const value = document.createElement('b');
+    value.textContent = item.value != null ? formatDelta(item.value) : '—';
+    if (item.value != null) value.classList.add(item.value <= item.limit ? 'ok' : 'warn');
+    row.append(label, value);
+    checks.appendChild(row);
+  });
 
-  const distWrap = $('#sum-dist');
-  distWrap.replaceChildren();
+  const dist = $('#sum-dist');
+  dist.replaceChildren();
   const groups = state.dist.groups
-    .map((group) => ({ name: group.name.trim(), stats: distanceStats(group.items.map(parseDistance)) }))
+    .map((group) => ({
+      name: group.name,
+      stats: distanceStats(group.items.map(parseDistance)),
+    }))
     .filter((item) => item.stats);
   if (!groups.length) {
-    distWrap.appendChild(emptyLine('还没有距离数据。到“距离”模式按方向分组填入。'));
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = '—';
+    dist.appendChild(empty);
   } else {
-    groups.forEach((item, i) => {
+    groups.forEach((item) => {
       const row = document.createElement('div');
       row.className = 'sum-dist-row';
       const name = document.createElement('span');
       name.className = 'sd-name';
-      name.textContent = item.name || `方向 ${i + 1}`;
+      name.textContent = item.name;
       const value = document.createElement('b');
       value.textContent = `${formatMeters(item.stats.mean)} m`;
-      const count = document.createElement('em');
-      count.textContent = `${item.stats.count} 次`;
-      row.append(name, value, count);
-      distWrap.appendChild(row);
+      row.append(name, value);
+      dist.appendChild(row);
     });
   }
 }
@@ -672,9 +861,9 @@ function buildRecordText() {
 
   const faceLine = (side, label) => {
     const items = [];
-    state[side].rounds.forEach((round, i) => {
+    state[side].rounds.forEach((round, index) => {
       const angle = computeRound(side, round);
-      if (angle != null) items.push(`测回${i + 1} ${formatAngle(angle)}`);
+      if (angle != null) items.push(`测回${index + 1} ${formatAngle(angle)}`);
     });
     if (!items.length) return null;
     const angles = state[side].rounds
@@ -686,6 +875,7 @@ function buildRecordText() {
   const rightLine = faceLine('right', '盘右');
   if (leftLine) lines.push(leftLine);
   if (rightLine) lines.push(rightLine);
+
   if (sum.final != null) {
     if (sum.oneSets.length) {
       lines.push(
@@ -698,15 +888,14 @@ function buildRecordText() {
   }
   if (sum.maxHalfDiff != null) lines.push(`半测回互差最大值：${formatDelta(sum.maxHalfDiff)}`);
 
-  const dists = state.dist.groups
-    .map((group, i) => {
+  const distances = state.dist.groups
+    .map((group) => {
       const stats = distanceStats(group.items.map(parseDistance));
       if (!stats) return null;
-      const name = group.name.trim() || `方向${i + 1}`;
-      return `${name}：${formatMeters(stats.mean)} m（${stats.count} 次，极差 ${formatMm(stats.rangeMm)} mm）`;
+      return `${group.name || '方向'}：${formatMeters(stats.mean)} m（${stats.count} 次，极差 ${formatMm(stats.rangeMm)} mm）`;
     })
     .filter(Boolean);
-  if (dists.length) lines.push(`距离：${dists.join('；')}`);
+  if (distances.length) lines.push(`距离：${distances.join('；')}`);
   return lines.join('\n');
 }
 
@@ -715,23 +904,23 @@ async function copyText(text) {
     await navigator.clipboard.writeText(text);
     return;
   }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
   document.execCommand('copy');
-  ta.remove();
+  textarea.remove();
 }
 
 async function copyRecord() {
   try {
     await copyText(buildRecordText());
-    toast('记录已复制');
+    toast('已复制');
   } catch {
-    toast('复制失败，请长按选择文本');
+    toast('复制失败');
   }
 }
 
@@ -747,24 +936,10 @@ async function shareRecord() {
   }
   try {
     await copyText(text);
-    toast('已复制，可粘贴分享');
+    toast('已复制');
   } catch {
     toast('分享失败');
   }
-}
-
-/* ---------------- 说明抽屉 ---------------- */
-
-function openSheet() {
-  const wrap = $('#help-sheet');
-  wrap.hidden = false;
-  document.body.style.overflow = 'hidden';
-}
-
-function closeSheet() {
-  const wrap = $('#help-sheet');
-  wrap.hidden = true;
-  document.body.style.overflow = '';
 }
 
 /* ---------------- 标签页 ---------------- */
@@ -773,45 +948,31 @@ function setTab(tab) {
   if (!TABS.includes(tab)) tab = 'left';
   activeTab = tab;
   state.tab = tab;
-  $$('.tab').forEach((btn) => {
-    const on = btn.dataset.tab === tab;
-    btn.classList.toggle('active', on);
-    btn.setAttribute('aria-selected', String(on));
+
+  $$('.mode').forEach((button) => {
+    const on = button.dataset.tab === tab;
+    button.classList.toggle('active', on);
+    button.setAttribute('aria-selected', String(on));
   });
   $$('.panel').forEach((panel) => {
     panel.hidden = panel.id !== `panel-${tab}`;
   });
-  if (tab === 'summary') renderSummary();
+
+  if (tab === 'summary') {
+    closeKeypad();
+    renderSummary();
+  } else if (keypadVisible) {
+    const first = firstIncompleteSlot() || getSlots()[0];
+    if (first) selectSlot(first);
+    else closeKeypad();
+  } else {
+    active = null;
+    syncActive();
+  }
   save();
 }
 
-/* ---------------- 事件绑定 ---------------- */
-
-function bindMeta() {
-  const map = {
-    station: $('#meta-station'),
-    targetA: $('#meta-target-a'),
-    targetB: $('#meta-target-b'),
-  };
-  for (const [key, input] of Object.entries(map)) {
-    input.value = state.meta[key] ?? '';
-    input.addEventListener('input', () => {
-      state.meta[key] = input.value;
-      updateRecordBrief();
-      save();
-    });
-  }
-}
-
-function updateRecordBrief() {
-  const parts = [];
-  if (state.meta.station.trim()) parts.push(state.meta.station.trim());
-  const a = state.meta.targetA.trim();
-  const b = state.meta.targetB.trim();
-  if (a || b) parts.push(`${a || 'A'}—${b || 'B'}`);
-  $('#record-brief').textContent = parts.length ? parts.join(' · ') : '测站 / 目标（可选）';
-  $('#record').classList.toggle('has-value', parts.length > 0);
-}
+/* ---------------- 静态事件 ---------------- */
 
 function syncMetaInputs() {
   $('#meta-station').value = state.meta.station ?? '';
@@ -819,99 +980,130 @@ function syncMetaInputs() {
   $('#meta-target-b').value = state.meta.targetB ?? '';
 }
 
+function bindMeta() {
+  const map = {
+    station: $('#meta-station'),
+    targetA: $('#meta-target-a'),
+    targetB: $('#meta-target-b'),
+  };
+  Object.entries(map).forEach(([key, input]) => {
+    input.value = state.meta[key] ?? '';
+    input.addEventListener('input', () => {
+      state.meta[key] = input.value;
+      save();
+    });
+  });
+}
+
 function loadDemo() {
-  if (hasAnyData() && !confirm('载入示例会覆盖当前输入，继续？')) return;
+  if (hasAnyData() && !confirm('载入示例会覆盖当前数据，继续？')) return;
   state = demoState();
   activeTab = 'left';
+  active = null;
+  closeKeypad();
   syncMetaInputs();
-  updateRecordBrief();
   renderFace('left');
   renderFace('right');
   renderDist();
+  renderSummary();
   setTab('left');
   save();
-  toast('已载入参考表 GCP2 示例');
+  toast('已载入示例');
 }
 
 function bindStatic() {
   bindMeta();
 
-  $$('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => setTab(btn.dataset.tab));
+  $$('.mode').forEach((button) => {
+    button.addEventListener('click', () => setTab(button.dataset.tab));
   });
 
   $$('[data-mode-group]').forEach((group) => {
     const side = group.dataset.modeGroup;
-    $$('[data-mode]', group).forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const mode = btn.dataset.mode;
+    $$('[data-mode]', group).forEach((button) => {
+      button.addEventListener('click', () => {
+        const mode = button.dataset.mode;
         if (state[side].mode === mode) return;
         state[side].mode = mode;
+        active = null;
         renderFace(side);
         renderSummary();
         save();
+        if (keypadVisible) {
+          const first = firstIncompleteSlot();
+          if (first) selectSlot(first);
+          else closeKeypad();
+        }
       });
     });
   });
 
-  $$('[data-add]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const side = btn.dataset.add;
+  $$('[data-add]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const side = button.dataset.add;
       state[side].rounds.push(createRound());
       renderFace(side);
       renderSummary();
       save();
-      const list = $(`.round-list[data-list="${side}"]`);
-      const card = list?.lastElementChild;
-      if (card) {
-        card.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        setTimeout(() => card.querySelector('input')?.focus({ preventScroll: true }), 80);
-      }
+      const roundIndex = state[side].rounds.length - 1;
+      const role = state[side].mode === 'angles' ? 'angle' : 'a';
+      activateSlot({ kind: 'angle', side, roundIndex, role, part: 'd' });
     });
   });
 
-  $$('[data-clear]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const which = btn.dataset.clear;
+  $$('[data-clear]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const which = button.dataset.clear;
       const label = which === 'left' ? '盘左' : which === 'right' ? '盘右' : '距离';
-      if (!confirm(`清空${label}数据？`)) return;
-      if (which === 'dist') state.dist = { groups: [createGroup()] };
+      if (!confirm(`清空${label}？`)) return;
+      if (which === 'dist') state.dist = { groups: [createGroup('方向 1')] };
       else state[which] = { ...state[which], rounds: [createRound()] };
+      active = null;
       if (which === 'dist') renderDist();
       else renderFace(which);
       renderSummary();
       save();
-      toast(`已清空${label}`);
+      const first = firstIncompleteSlot();
+      if (first) activateSlot(first);
+      else closeKeypad();
     });
   });
 
   $('#btn-add-group').addEventListener('click', () => {
-    state.dist.groups.push(createGroup());
+    const index = state.dist.groups.length;
+    state.dist.groups.push(createGroup(`方向 ${index + 1}`));
     renderDist();
     save();
-    const groups = $$('.group-list .group');
-    const last = groups[groups.length - 1];
-    if (last) {
-      last.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      setTimeout(() => last.querySelector('input')?.focus({ preventScroll: true }), 80);
-    }
+    activateSlot({ kind: 'dist', groupIndex: index, itemIndex: 0 });
   });
 
   $('#btn-demo').addEventListener('click', loadDemo);
-  $('#btn-help').addEventListener('click', openSheet);
-  $('#btn-sheet-close').addEventListener('click', closeSheet);
+  $('#btn-help').addEventListener('click', () => {
+    $('#help-sheet').hidden = false;
+    document.body.style.overflow = 'hidden';
+  });
+  $('#btn-sheet-close').addEventListener('click', () => {
+    $('#help-sheet').hidden = true;
+    document.body.style.overflow = '';
+  });
   $('#help-sheet').addEventListener('click', (event) => {
-    if (event.target === $('#help-sheet')) closeSheet();
+    if (event.target === $('#help-sheet')) {
+      $('#help-sheet').hidden = true;
+      document.body.style.overflow = '';
+    }
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeSheet();
+    if (event.key === 'Escape' && !$('#help-sheet').hidden) {
+      $('#help-sheet').hidden = true;
+      document.body.style.overflow = '';
+    }
   });
 
   $('#btn-copy').addEventListener('click', copyRecord);
   $('#btn-share').addEventListener('click', shareRecord);
-}
 
-/* ---------------- 启动 ---------------- */
+  bindKeypad();
+}
 
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
@@ -921,14 +1113,25 @@ function registerSW() {
   });
 }
 
+function syncTopbarHeight() {
+  const topbar = $('.topbar');
+  if (topbar) document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`);
+}
+
 function init() {
   bindStatic();
-  updateRecordBrief();
+  syncMetaInputs();
   renderFace('left');
   renderFace('right');
   renderDist();
   renderSummary();
   setTab(activeTab);
+  if (activeTab !== 'summary') {
+    const first = firstIncompleteSlot();
+    if (first) activateSlot(first);
+  }
+  syncTopbarHeight();
+  window.addEventListener('resize', syncTopbarHeight);
   registerSW();
 }
 
