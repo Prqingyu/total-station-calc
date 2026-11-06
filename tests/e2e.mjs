@@ -1,5 +1,6 @@
-﻿/**
- * 绉诲姩绔鍒扮娴嬭瘯锛堟暟瀛楅敭鐩樼増锛? *   node tests/e2e.mjs
+/**
+ * 移动端端到端测试（数字键盘版）
+ *   node tests/e2e.mjs
  *   BASE_URL=https://... node tests/e2e.mjs
  */
 import { chromium } from 'playwright-core';
@@ -19,7 +20,7 @@ const errors = [];
 
 function check(name, condition, detail = '') {
   results.push({ name, ok: Boolean(condition), detail });
-  if (!condition) errors.push(`${name}${detail ? ` 鈥?${detail}` : ''}`);
+  if (!condition) errors.push(`${name}${detail ? ` — ${detail}` : ''}`);
 }
 
 const browser = await chromium.launch({ executablePath: EDGE, headless: true });
@@ -45,21 +46,21 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(350);
 
-/* ---------- 绌虹姸鎬侊細閿洏鑷姩鎵撳紑 ---------- */
-check('棣栧睆鏁板瓧閿洏鎵撳紑', await page.isVisible('#keypad'));
+/* ---------- 空状态：键盘自动打开 ---------- */
+check('首屏数字键盘打开', await page.isVisible('#keypad'));
 check(
-  '閿洏鏍囬涓虹洏宸︽祴鍥?璇绘暟A',
-  (await page.textContent('#keypad-caption')) === '鐩樺乏 路 娴嬪洖 1 路 璇绘暟 A',
+  '键盘标题为盘左测回1读数A',
+  (await page.textContent('#keypad-caption')) === '盘左 · 测回 1 · 读数 A',
   await page.textContent('#keypad-caption'),
 );
 check(
-  '棣栨牸鑷姩閫変腑',
+  '首格自动选中',
   (await page.getAttribute('#panel-left .reading[data-reading="a"] .cell.active', 'data-part')) === 'd',
 );
-check('鏃犲皬瀛楄鏄?, (await page.locator('.result-sub, .panel-head, .record').count()) === 0);
+check('无小字说明', (await page.locator('.result-sub, .panel-head, .record').count()) === 0);
 await page.screenshot({ path: `${OUT}/${prefix}-01-keypad-empty.png` });
 
-/* ---------- 閿洏杈撳叆 ---------- */
+/* ---------- 键盘输入 ---------- */
 async function press(key) {
   await page.click(`#keypad [data-key="${key}"]`);
   await page.waitForTimeout(15);
@@ -79,45 +80,45 @@ async function typeReading(side, roundIndex, role, d, m, s) {
 await typeReading('left', 0, 'a', 0, 20, 42);
 await page.waitForTimeout(80);
 check(
-  '杈撳畬璇绘暟 A 鑷姩璺冲埌璇绘暟 B',
+  '输完读数 A 自动跳到读数 B',
   (await page.getAttribute('#panel-left .reading[data-reading="b"] .cell.active', 'data-part')) === 'd',
 );
 await typeReading('left', 0, 'b', 125, 35, 0);
 await page.waitForTimeout(120);
 check(
-  '绗?1 娴嬪洖瑙掑€?125掳14鈥?8鈥?,
-  (await page.textContent('#panel-left .round[data-index="0"] .round-angle')) === '125掳14鈥?8鈥?,
+  '第 1 测回角值 125°14′18″',
+  (await page.textContent('#panel-left .round[data-index="0"] .round-angle')) === '125°14′18″',
   await page.textContent('#panel-left .round[data-index="0"] .round-angle'),
 );
 check(
-  '鐩樺乏骞冲潎 125掳14鈥?8鈥?,
-  (await page.textContent('#panel-left .face-display b')) === '125掳14鈥?8鈥?,
+  '盘左平均 125°14′18″',
+  (await page.textContent('#panel-left .face-display b')) === '125°14′18″',
   await page.textContent('#panel-left .face-display b'),
 );
 
-/* 娣诲姞绗簩娴嬪洖 */
+/* 添加第二测回 */
 await page.click('[data-add="left"]');
 await page.waitForTimeout(120);
-check('娣诲姞娴嬪洖鍚庨敭鐩樺畾浣嶅埌鏂版祴鍥?, await page.isVisible('#keypad'));
+check('添加测回后键盘定位到新测回', await page.isVisible('#keypad'));
 await typeReading('left', 1, 'a', 90, 11, 36);
 await typeReading('left', 1, 'b', 215, 26, 0);
 await page.waitForTimeout(150);
 check(
-  '鐩樺乏涓ゆ祴鍥炲钩鍧?125掳14鈥?1鈥?,
-  (await page.textContent('#panel-left .face-display b')) === '125掳14鈥?1鈥?,
+  '盘左两测回平均 125°14′21″',
+  (await page.textContent('#panel-left .face-display b')) === '125°14′21″',
   await page.textContent('#panel-left .face-display b'),
 );
 await page.screenshot({ path: `${OUT}/${prefix}-02-left-keypad.png` });
 
-/* 鏀惰捣 / 閲嶆柊鎵撳紑閿洏 */
+/* 收起 / 重新打开键盘 */
 await page.click('#keypad-hide');
 await page.waitForTimeout(100);
-check('鏀惰捣閿洏', !(await page.isVisible('#keypad')));
+check('收起键盘', !(await page.isVisible('#keypad')));
 await page.click('#panel-left .reading[data-reading="a"] .cell[data-part="d"]');
 await page.waitForTimeout(100);
-check('鐐规牸瀛愰噸鏂版墦寮€閿洏', await page.isVisible('#keypad'));
+check('点格子重新打开键盘', await page.isVisible('#keypad'));
 
-/* 鐩樺彸 */
+/* 盘右 */
 await page.click('#tab-right');
 await page.waitForTimeout(150);
 await typeReading('right', 0, 'a', 180, 21, 12);
@@ -128,105 +129,105 @@ await typeReading('right', 1, 'a', 270, 11, 42);
 await typeReading('right', 1, 'b', 35, 26, 12);
 await page.waitForTimeout(150);
 check(
-  '鐩樺彸涓ゆ祴鍥炲钩鍧?125掳14鈥?7鈥?,
-  (await page.textContent('#panel-right .face-display b')) === '125掳14鈥?7鈥?,
+  '盘右两测回平均 125°14′27″',
+  (await page.textContent('#panel-right .face-display b')) === '125°14′27″',
   await page.textContent('#panel-right .face-display b'),
 );
 await page.screenshot({ path: `${OUT}/${prefix}-03-right.png` });
 
-/* 鐩存帴杈撹鍊硷紙淇濈暀璇绘暟鏁版嵁涓嶄涪锛?*/
+/* 直接输角值（保留读数数据不丢） */
 await page.click('#tab-left');
 await page.click('#panel-left [data-mode="angles"]');
 await page.waitForTimeout(150);
-check('鍒囧埌瑙掑€兼ā寮忓悗閿洏鍙敤', await page.isVisible('#keypad'));
+check('切到角值模式后键盘可用', await page.isVisible('#keypad'));
 await typeReading('left', 0, 'angle', 125, 14, 21);
 await typeReading('left', 1, 'angle', 125, 14, 27);
 await page.waitForTimeout(150);
 check(
-  '瑙掑€兼ā寮忓钩鍧?125掳14鈥?4鈥?,
-  (await page.textContent('#panel-left .face-display b')) === '125掳14鈥?4鈥?,
+  '角值模式平均 125°14′24″',
+  (await page.textContent('#panel-left .face-display b')) === '125°14′24″',
   await page.textContent('#panel-left .face-display b'),
 );
 await page.click('#panel-left [data-mode="readings"]');
 await page.waitForTimeout(150);
 check(
-  '鍒囧洖璇绘暟妯″紡浠嶄负 125掳14鈥?1鈥?,
-  (await page.textContent('#panel-left .face-display b')) === '125掳14鈥?1鈥?,
+  '切回读数模式仍为 125°14′21″',
+  (await page.textContent('#panel-left .face-display b')) === '125°14′21″',
   await page.textContent('#panel-left .face-display b'),
 );
 
-/* 姹囨€?*/
+/* 汇总 */
 await page.click('#tab-summary');
 await page.waitForTimeout(150);
 check(
-  '姹囨€诲悇娴嬪洖骞冲潎 125掳14鈥?4鈥?,
-  (await page.textContent('#sum-final')) === '125掳14鈥?4鈥?,
+  '汇总各测回平均 125°14′24″',
+  (await page.textContent('#sum-final')) === '125°14′24″',
   await page.textContent('#sum-final'),
 );
 const roundRows = await page.locator('#sum-rounds .sum-round').count();
-check('姹囨€绘祴鍥炴槑缁?2 琛?, roundRows === 2, String(roundRows));
+check('汇总测回明细 2 行', roundRows === 2, String(roundRows));
 const checkTexts = await page.locator('#sum-checks .check').allInnerTexts();
 check(
-  '闄愬樊鏄剧ず鍗婃祴鍥炰簰宸?6鈥?,
-  checkTexts[0]?.includes('6鈥?),
+  '限差显示半测回互差 6″',
+  checkTexts[0]?.includes('6″'),
   JSON.stringify(checkTexts),
 );
 await page.screenshot({ path: `${OUT}/${prefix}-04-summary.png` });
 
-/* 璺濈 */
+/* 距离 */
 await page.click('#tab-dist');
 await page.waitForTimeout(120);
-check('姹囨€婚〉鏀惰捣閿洏', !(await page.isVisible('#keypad')));
+check('汇总页收起键盘', !(await page.isVisible('#keypad')));
 await page.click('#panel-dist .group[data-gindex="0"] .dist-val');
 await page.waitForTimeout(100);
-check('鐐硅窛绂绘牸鎵撳紑閿洏', await page.isVisible('#keypad'));
+check('点距离格打开键盘', await page.isVisible('#keypad'));
 for (const key of ['5', '9', 'dot', '2', '3', '0']) await press(key);
 await page.click('#panel-dist .group[data-gindex="0"] .add-item');
 await page.waitForTimeout(120);
 for (const key of ['5', '9', 'dot', '2', '3', '1']) await press(key);
 await page.waitForTimeout(150);
 check(
-  '璺濈鍧囧€?59.230锛堜簲鎴愬弻锛?,
+  '距离均值 59.230（五成双）',
   (await page.textContent('#panel-dist .group[data-gindex="0"] .dist-out')) === '59.230',
   await page.textContent('#panel-dist .group[data-gindex="0"] .dist-out'),
 );
 await page.screenshot({ path: `${OUT}/${prefix}-05-distance.png` });
 
-/* 鍒锋柊鎸佷箙鍖?*/
+/* 刷新持久化 */
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(300);
 await page.click('#tab-summary');
 await page.waitForTimeout(150);
 check(
-  '鍒锋柊鍚庢暟鎹繚鐣?,
-  (await page.textContent('#sum-final')) === '125掳14鈥?4鈥?,
+  '刷新后数据保留',
+  (await page.textContent('#sum-final')) === '125°14′24″',
   await page.textContent('#sum-final'),
 );
 
-/* 绀轰緥鏁版嵁 */
+/* 示例数据 */
 await page.click('#btn-demo');
 await page.waitForTimeout(300);
 await page.click('#tab-summary');
 await page.waitForTimeout(150);
 check(
-  '绀轰緥杞藉叆鍚庡悇娴嬪洖骞冲潎 125掳14鈥?4鈥?,
-  (await page.textContent('#sum-final')) === '125掳14鈥?4鈥?,
+  '示例载入后各测回平均 125°14′24″',
+  (await page.textContent('#sum-final')) === '125°14′24″',
   await page.textContent('#sum-final'),
 );
 const demoDist = await page.locator('#sum-dist .sum-dist-row').allInnerTexts();
-check('绀轰緥璺濈涓よ', demoDist.length === 2, JSON.stringify(demoDist));
-check('绀轰緥璺濈 59.230', demoDist[0]?.includes('59.230'), demoDist[0]);
-check('绀轰緥璺濈 114.552', demoDist[1]?.includes('114.552'), demoDist[1]);
+check('示例距离两行', demoDist.length === 2, JSON.stringify(demoDist));
+check('示例距离 59.230', demoDist[0]?.includes('59.230'), demoDist[0]);
+check('示例距离 114.552', demoDist[1]?.includes('114.552'), demoDist[1]);
 
-/* 璇存槑 */
+/* 说明 */
 await page.click('#btn-help');
 await page.waitForTimeout(200);
-check('璇存槑鍙墦寮€', await page.isVisible('#help-sheet'));
+check('说明可打开', await page.isVisible('#help-sheet'));
 await page.click('#btn-sheet-close');
 await page.waitForTimeout(120);
-check('璇存槑鍙叧闂?, !(await page.isVisible('#help-sheet')));
+check('说明可关闭', !(await page.isVisible('#help-sheet')));
 
-/* 甯冨眬 */
+/* 布局 */
 for (const [width, height] of [
   [360, 800],
   [390, 844],
@@ -237,14 +238,8 @@ for (const [width, height] of [
   const layout = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,
-    keypad: (() => {
-      const el = document.querySelector('#keypad');
-      if (!el || el.hidden) return null;
-      const rect = el.getBoundingClientRect();
-      return { left: rect.left, right: rect.right, width: rect.width };
-    })(),
   }));
-  check(`${width}px 鏃犳í鍚戞孩鍑篳, layout.scrollWidth <= layout.innerWidth + 1, JSON.stringify(layout));
+  check(`${width}px 无横向溢出`, layout.scrollWidth <= layout.innerWidth + 1, JSON.stringify(layout));
 }
 
 await page.setViewportSize({ width: 1280, height: 900 });
@@ -253,7 +248,7 @@ const desktop = await page.evaluate(() => ({
   appWidth: document.querySelector('#app').getBoundingClientRect().width,
   overflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
 }));
-check('妗岄潰涓嶇牬鐗?, desktop.overflow && desktop.appWidth <= 600, JSON.stringify(desktop));
+check('桌面不破版', desktop.overflow && desktop.appWidth <= 600, JSON.stringify(desktop));
 await page.screenshot({ path: `${OUT}/${prefix}-06-desktop.png` });
 
 await browser.close();
@@ -269,4 +264,3 @@ const summary = {
 await writeFile(`${OUT}/${prefix}-e2e-result.json`, JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
 if (summary.failed > 0) process.exitCode = 1;
-
