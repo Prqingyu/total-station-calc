@@ -1,6 +1,8 @@
 /* 测回计算器 · Service Worker
-   导航请求走网络优先、离线回退缓存；静态资源缓存优先。 */
-const CACHE = 'tscalc-v1';
+   导航请求：网络优先，离线回退缓存。
+   静态资源：缓存优先 + 后台更新（stale-while-revalidate），
+   既保证离线可用，也能在下次打开时用上新版本。 */
+const CACHE = 'tscalc-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -54,15 +56,17 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((hit) => {
-      if (hit) return hit;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
+    caches.match(request).then((cached) => {
+      const network = fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
+      return cached || network;
     }),
   );
 });
