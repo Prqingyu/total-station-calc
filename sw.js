@@ -2,7 +2,7 @@
    导航请求：网络优先，离线回退缓存。
    静态资源：缓存优先 + 后台更新（stale-while-revalidate），
    既保证离线可用，也能在下次打开时用上新版本。 */
-const CACHE = 'tscalc-v2';
+const CACHE = 'tscalc-v3';
 const ASSETS = [
   './',
   './index.html',
