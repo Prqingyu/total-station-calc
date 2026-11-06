@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
-  <title>测回计算器 · 全站仪角度与距离平均</title>
-  <meta name="description" content="全站仪测回计算：输入盘左/盘右水平度盘读数，自动计算半测回角值、一测回角值与距离平均值。手机离线可用。" />
+  <title>测回计算器</title>
+  <meta name="description" content="全站仪测回计算：盘左、盘右、距离平均。" />
   <meta name="theme-color" content="#123b6d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="测回计算" />
+  <meta name="apple-mobile-web-app-title" content="测回" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon-180.png" />
@@ -18,163 +18,120 @@
 </head>
 <body>
   <div class="app" id="app">
-    <header class="app-header">
-      <div class="brand">
-        <img class="brand-mark" src="icons/icon-64.png" alt="" width="42" height="42" />
-        <div class="brand-text">
+    <div class="topbar">
+      <header class="app-header">
+        <div class="brand">
+          <img class="brand-mark" src="icons/icon-64.png" alt="" width="36" height="36" />
           <h1>测回计算器</h1>
-          <p>全站仪 · 盘左 / 盘右 / 距离</p>
         </div>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="chip" id="btn-demo" title="载入参考表格中的 GCP2 示例">示例</button>
-        <button type="button" class="icon-btn" id="btn-help" aria-label="使用说明">?</button>
-      </div>
-    </header>
-
-    <details class="record" id="record">
-      <summary>
-        <span class="record-title">记录信息</span>
-        <span class="record-brief" id="record-brief">测站 / 目标（可选）</span>
-        <svg class="chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </summary>
-      <div class="record-grid">
-        <label class="field">
-          <span>测站</span>
-          <input id="meta-station" type="text" placeholder="如 GCP2" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>目标 A</span>
-          <input id="meta-target-a" type="text" placeholder="如 GCP1" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>目标 B</span>
-          <input id="meta-target-b" type="text" placeholder="如 GCP3" autocomplete="off" />
-        </label>
-      </div>
-    </details>
+        <div class="header-actions">
+          <button type="button" class="chip" id="btn-demo">示例</button>
+          <button type="button" class="icon-btn" id="btn-help" aria-label="说明">?</button>
+        </div>
+      </header>
+      <nav class="modes" role="tablist" aria-label="模式">
+        <button type="button" class="mode active" id="tab-left" data-tab="left" role="tab" aria-selected="true" aria-controls="panel-left">盘左</button>
+        <button type="button" class="mode" id="tab-right" data-tab="right" role="tab" aria-selected="false" aria-controls="panel-right">盘右</button>
+        <button type="button" class="mode" id="tab-dist" data-tab="dist" role="tab" aria-selected="false" aria-controls="panel-dist">距离</button>
+        <button type="button" class="mode" id="tab-summary" data-tab="summary" role="tab" aria-selected="false" aria-controls="panel-summary">汇总</button>
+      </nav>
+    </div>
 
     <main class="main">
       <!-- 盘左 -->
       <section class="panel" id="panel-left" role="tabpanel" aria-labelledby="tab-left">
-        <div class="panel-head">
-          <div>
-            <h2>盘左（正镜）</h2>
-            <p>按目标顺序 A → B 填入两个水平度盘读数，自动算半测回角值并直接平均。</p>
-          </div>
-          <button type="button" class="text-btn" data-clear="left">清空</button>
-        </div>
-        <div class="seg" role="group" aria-label="盘左输入方式" data-mode-group="left">
-          <button type="button" data-mode="readings" class="active">读数 → 角值</button>
-          <button type="button" data-mode="angles">直接输角值</button>
-        </div>
-        <div class="result-card" data-result="left">
-          <div class="result-eyebrow">盘左平均角值</div>
-          <div class="result-value">—</div>
-          <div class="result-sub">输入读数后自动计算</div>
+        <div class="face-display" data-result="left"><span>盘左平均</span><b>—</b></div>
+        <div class="seg" role="group" aria-label="输入方式" data-mode-group="left">
+          <button type="button" data-mode="readings" class="active">读数</button>
+          <button type="button" data-mode="angles">角值</button>
         </div>
         <div class="round-list" data-list="left"></div>
-        <button type="button" class="add-btn" data-add="left">＋ 添加测回</button>
+        <div class="panel-actions">
+          <button type="button" class="add-btn" data-add="left">＋ 测回</button>
+          <button type="button" class="text-btn" data-clear="left">清空</button>
+        </div>
       </section>
 
       <!-- 盘右 -->
       <section class="panel" id="panel-right" role="tabpanel" aria-labelledby="tab-right" hidden>
-        <div class="panel-head">
-          <div>
-            <h2>盘右（倒镜）</h2>
-            <p>按与盘左相同的 A → B 目标顺序填入盘右读数，自动算角值并平均。</p>
-          </div>
-          <button type="button" class="text-btn" data-clear="right">清空</button>
-        </div>
-        <div class="seg" role="group" aria-label="盘右输入方式" data-mode-group="right">
-          <button type="button" data-mode="readings" class="active">读数 → 角值</button>
-          <button type="button" data-mode="angles">直接输角值</button>
-        </div>
-        <div class="result-card" data-result="right">
-          <div class="result-eyebrow">盘右平均角值</div>
-          <div class="result-value">—</div>
-          <div class="result-sub">输入读数后自动计算</div>
+        <div class="face-display" data-result="right"><span>盘右平均</span><b>—</b></div>
+        <div class="seg" role="group" aria-label="输入方式" data-mode-group="right">
+          <button type="button" data-mode="readings" class="active">读数</button>
+          <button type="button" data-mode="angles">角值</button>
         </div>
         <div class="round-list" data-list="right"></div>
-        <button type="button" class="add-btn" data-add="right">＋ 添加测回</button>
+        <div class="panel-actions">
+          <button type="button" class="add-btn" data-add="right">＋ 测回</button>
+          <button type="button" class="text-btn" data-clear="right">清空</button>
+        </div>
       </section>
 
       <!-- 距离 -->
       <section class="panel" id="panel-dist" role="tabpanel" aria-labelledby="tab-dist" hidden>
-        <div class="panel-head">
-          <div>
-            <h2>距离平均</h2>
-            <p>每个方向一组，输入水平距离（m），自动取平均并给出极差。</p>
-          </div>
-          <button type="button" class="text-btn" data-clear="dist">清空</button>
-        </div>
         <div class="group-list" data-list="dist"></div>
-        <button type="button" class="add-btn" id="btn-add-group">＋ 添加方向</button>
-        <div class="result-card result-card--soft">
-          <div class="result-eyebrow">提示</div>
-          <div class="result-foot">同一方向的多条距离放在同一组里；不同方向（如 GCP2→GCP1 与 GCP2→GCP3）分组填写。</div>
+        <div class="panel-actions">
+          <button type="button" class="add-btn" id="btn-add-group">＋ 方向</button>
+          <button type="button" class="text-btn" data-clear="dist">清空</button>
         </div>
       </section>
 
       <!-- 汇总 -->
       <section class="panel" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary" hidden>
-        <div class="panel-head">
-          <div>
-            <h2>汇总</h2>
-            <p>左右取平均得到一测回，再对各测回取平均，口径与参考表格一致。</p>
-          </div>
-        </div>
         <div class="result-card">
-          <div class="result-eyebrow">各测回平均值</div>
+          <div class="result-eyebrow" id="sum-eyebrow">各测回平均</div>
           <div class="result-value" id="sum-final">—</div>
-          <div class="result-sub" id="sum-final-sub">先在盘左、盘右中输入数据</div>
-        </div>
-        <div class="sum-grid">
-          <div class="stat"><span>盘左平均</span><b id="sum-left">—</b></div>
-          <div class="stat"><span>盘右平均</span><b id="sum-right">—</b></div>
-          <div class="stat"><span>左右平均互差</span><b id="sum-diff">—</b></div>
         </div>
         <div class="card">
-          <h3>测回明细</h3>
+          <h3>测回</h3>
           <div id="sum-rounds" class="sum-rounds"></div>
         </div>
         <div class="card">
-          <h3>限差检查 <span class="tag">DJ6 参考</span></h3>
-          <div id="sum-checks" class="checks"></div>
-        </div>
-        <div class="card">
-          <h3>距离均值</h3>
+          <h3>距离</h3>
           <div id="sum-dist" class="sum-dist"></div>
         </div>
         <div class="card">
-          <h3>记录文本</h3>
-          <p class="card-hint">按测回顺序生成，可直接粘贴到 Word 或微信。</p>
-          <div class="copy-actions">
-            <button type="button" class="btn-primary" id="btn-copy">复制结果</button>
-            <button type="button" class="btn-ghost" id="btn-share">分享</button>
+          <h3>限差</h3>
+          <div id="sum-checks" class="checks"></div>
+        </div>
+        <div class="card">
+          <h3>记录</h3>
+          <div class="meta-grid">
+            <label><span>测站</span><input id="meta-station" type="text" autocomplete="off" /></label>
+            <label><span>目标 A</span><input id="meta-target-a" type="text" autocomplete="off" /></label>
+            <label><span>目标 B</span><input id="meta-target-b" type="text" autocomplete="off" /></label>
           </div>
+        </div>
+        <div class="copy-actions">
+          <button type="button" class="btn-primary" id="btn-copy">复制结果</button>
+          <button type="button" class="btn-ghost" id="btn-share">分享</button>
         </div>
       </section>
     </main>
 
-    <nav class="tabbar" role="tablist" aria-label="模式切换">
-      <button type="button" class="tab active" id="tab-left" data-tab="left" role="tab" aria-selected="true" aria-controls="panel-left">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/><path d="M5 19h14"/></svg>
-        <span>盘左</span>
-      </button>
-      <button type="button" class="tab" id="tab-right" data-tab="right" role="tab" aria-selected="false" aria-controls="panel-right">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/><path d="M5 19h14"/></svg>
-        <span>盘右</span>
-      </button>
-      <button type="button" class="tab" id="tab-dist" data-tab="dist" role="tab" aria-selected="false" aria-controls="panel-dist">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="2"/><path d="M7.5 8v3.5M12 8v4.5M16.5 8v3.5"/></svg>
-        <span>距离</span>
-      </button>
-      <button type="button" class="tab" id="tab-summary" data-tab="summary" role="tab" aria-selected="false" aria-controls="panel-summary">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14M5 12h9M5 19h6"/><circle cx="18" cy="16.5" r="2.5"/></svg>
-        <span>汇总</span>
-      </button>
-    </nav>
+    <div class="keypad" id="keypad" hidden>
+      <div class="keypad-top">
+        <span class="keypad-caption" id="keypad-caption"></span>
+        <button type="button" class="keypad-hide" id="keypad-hide">收起</button>
+      </div>
+      <div class="keypad-grid">
+        <button type="button" class="key" data-key="7">7</button>
+        <button type="button" class="key" data-key="8">8</button>
+        <button type="button" class="key" data-key="9">9</button>
+        <button type="button" class="key key-fn" data-key="back">⌫</button>
+        <button type="button" class="key" data-key="4">4</button>
+        <button type="button" class="key" data-key="5">5</button>
+        <button type="button" class="key" data-key="6">6</button>
+        <button type="button" class="key key-fn" data-key="next">→</button>
+        <button type="button" class="key" data-key="1">1</button>
+        <button type="button" class="key" data-key="2">2</button>
+        <button type="button" class="key" data-key="3">3</button>
+        <button type="button" class="key key-fn" data-key="clear">清</button>
+        <button type="button" class="key" data-key="00">00</button>
+        <button type="button" class="key" data-key="0">0</button>
+        <button type="button" class="key" data-key="dot">.</button>
+        <button type="button" class="key key-done" data-key="done">完成</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -182,36 +139,20 @@
   <div class="sheet-wrap" id="help-sheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-head">
-        <h2 id="sheet-title">使用说明</h2>
+        <h2 id="sheet-title">说明</h2>
         <button type="button" class="icon-btn" id="btn-sheet-close" aria-label="关闭">✕</button>
       </div>
-
       <div class="sheet-body">
-        <h3>三个模式</h3>
-        <ol class="steps">
-          <li><b>盘左</b>：输入每个测回两个目标的水平度盘读数 A、B，角值 = B 读数 − A 读数（不够减时加 360°），再对各测回角值直接平均。</li>
-          <li><b>盘右</b>：按与盘左相同的 A → B 目标顺序填盘右读数，算法与盘左相同；汇总时左右取平均得到一测回。</li>
-          <li><b>距离</b>：每个方向一组，填入所有水平距离，自动平均并给出极差。</li>
-        </ol>
-        <p>一个测站处理完，先在“汇总”里复制结果，再点各模式右上角“清空”，即可录入下一个测站。</p>
-
-        <h3>计算公式</h3>
+        <h3>输入</h3>
+        <p>点读数格子，用底部数字键盘输入。度按 → 跳到分；分、秒满两位自动跳；秒满两位自动到下一读数。</p>
+        <p>距离：点距离格，输入数字和“.”，按 → 到下一条。</p>
+        <h3>计算</h3>
         <div class="formula">半测回角值 = (读数 B − 读数 A + 360°) mod 360°</div>
-        <div class="formula">一测回角值 = (盘左半测回 + 盘右半测回) ÷ 2</div>
-        <div class="formula">各测回平均值 = 各一测回角值的算术平均</div>
-        <div class="formula">距离均值 = 同方向各次距离的算术平均</div>
-
-        <h3>精度与取整</h3>
-        <p>角度按 0.01″ 计算与显示（非整数秒保留两位小数）。距离按“四舍六入五成双”取至毫米，均值下方同时给出未取整到毫米的数值（最多 5 位小数）。</p>
-        <p>限差提示按 DJ6 常用指标：半测回互差 ≤ 40″，各测回互差 ≤ 24″，仅作参考。</p>
-
-        <h3>快捷输入</h3>
-        <p>度、分、秒分三格填写，输入满格会自动跳到下一格。也可以直接把 <span class="code">125°35′00″</span> 或 <span class="code">125 35 00</span> 粘贴进任意一格。</p>
-
-        <h3>装到手机桌面</h3>
-        <p>Android：用 Chrome 打开页面 → 右上角菜单 → “添加到主屏幕”。<br />iPhone：用 Safari 打开 → 分享按钮 → “添加到主屏幕”。</p>
-        <p>首次打开后应用会缓存，之后没有网络也能计算。</p>
-        <p class="sheet-foot">v1.0 · 仅做数值计算，观测记录以原始手簿为准。</p>
+        <div class="formula">一测回角值 = (盘左 + 盘右) ÷ 2</div>
+        <div class="formula">各测回平均值 = 各一测回的平均</div>
+        <h3>安装</h3>
+        <p>Android：Chrome 菜单 → 添加到主屏幕。iPhone：Safari 分享 → 添加到主屏幕。首次打开后离线可用。</p>
+        <p class="sheet-foot">v1.1 · 观测记录以原始手簿为准。</p>
       </div>
     </div>
   </div>
@@ -220,57 +161,52 @@
     <article class="round">
       <div class="round-head">
         <span class="round-no"></span>
+        <span class="round-angle"></span>
         <button type="button" class="btn-x btn-del" aria-label="删除该测回">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </div>
       <div class="reading" data-reading="a">
         <span class="reading-tag">读数 A</span>
         <div class="dms">
-          <label class="dms-box"><input data-part="d" inputmode="numeric" maxlength="3" placeholder="0" aria-label="度" /><span class="unit">°</span></label>
-          <label class="dms-box"><input data-part="m" inputmode="numeric" maxlength="2" placeholder="00" aria-label="分" /><span class="unit">′</span></label>
-          <label class="dms-box"><input data-part="s" inputmode="decimal" maxlength="5" placeholder="00" aria-label="秒" /><span class="unit">″</span></label>
+          <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
+          <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
+          <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
         </div>
       </div>
       <div class="reading" data-reading="b">
         <span class="reading-tag">读数 B</span>
         <div class="dms">
-          <label class="dms-box"><input data-part="d" inputmode="numeric" maxlength="3" placeholder="0" aria-label="度" /><span class="unit">°</span></label>
-          <label class="dms-box"><input data-part="m" inputmode="numeric" maxlength="2" placeholder="00" aria-label="分" /><span class="unit">′</span></label>
-          <label class="dms-box"><input data-part="s" inputmode="decimal" maxlength="5" placeholder="00" aria-label="秒" /><span class="unit">″</span></label>
+          <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
+          <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
+          <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
         </div>
       </div>
       <div class="reading" data-reading="angle">
         <span class="reading-tag">角值</span>
         <div class="dms">
-          <label class="dms-box"><input data-part="d" inputmode="numeric" maxlength="3" placeholder="0" aria-label="度" /><span class="unit">°</span></label>
-          <label class="dms-box"><input data-part="m" inputmode="numeric" maxlength="2" placeholder="00" aria-label="分" /><span class="unit">′</span></label>
-          <label class="dms-box"><input data-part="s" inputmode="decimal" maxlength="5" placeholder="00" aria-label="秒" /><span class="unit">″</span></label>
+          <button type="button" class="cell" data-part="d" aria-label="度"><span class="cell-val"></span><span class="cell-unit">°</span></button>
+          <button type="button" class="cell" data-part="m" aria-label="分"><span class="cell-val"></span><span class="cell-unit">′</span></button>
+          <button type="button" class="cell" data-part="s" aria-label="秒"><span class="cell-val"></span><span class="cell-unit">″</span></button>
         </div>
       </div>
-      <div class="round-foot">
-        <span>半测回角值</span>
-        <output class="angle-out">—</output>
-      </div>
-      <div class="round-warn" hidden>角值大于 180°，请检查 A/B 读数顺序</div>
     </article>
   </template>
 
   <template id="tpl-group">
     <article class="group">
       <div class="group-head">
-        <input class="group-name" type="text" placeholder="方向，如 GCP2 → GCP1" autocomplete="off" aria-label="方向名称" />
+        <input class="group-name" type="text" autocomplete="off" aria-label="方向名称" />
         <button type="button" class="btn-x btn-del-group" aria-label="删除该方向">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </div>
       <div class="dist-list"></div>
-      <button type="button" class="add-mini add-item">＋ 添加测量</button>
       <div class="group-result">
-        <div class="gr-label">平均距离</div>
-        <div class="gr-value"><output class="dist-out">—</output><span class="unit-m">m</span></div>
-        <div class="group-sub">输入后自动平均</div>
+        <span class="gr-label">平均</span>
+        <span class="gr-value"><output class="dist-out">—</output><span class="unit-m">m</span></span>
       </div>
+      <button type="button" class="add-mini add-item">＋ 测量</button>
     </article>
   </template>
 
