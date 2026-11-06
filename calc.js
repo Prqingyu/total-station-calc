@@ -109,6 +109,46 @@ export function angleFromReadings(aParts, bParts) {
   return clockwiseAngleSec(a, b);
 }
 
+const HALF_CIRCLE = CIRCLE_SEC / 2;
+
+/** 两个角度之间的最短有符号差（-180°, 180°]，处理跨 0°/360° */
+export function circularDiffSec(fromSec, toSec) {
+  if (!Number.isFinite(fromSec) || !Number.isFinite(toSec)) return null;
+  let diff = (toSec - fromSec) % CIRCLE_SEC;
+  if (diff > HALF_CIRCLE) diff -= CIRCLE_SEC;
+  if (diff <= -HALF_CIRCLE) diff += CIRCLE_SEC;
+  return diff;
+}
+
+/** 两个角度之间的最短间隔（0 ~ 180°） */
+export function angleSeparationSec(a, b) {
+  const diff = circularDiffSec(a, b);
+  return diff == null ? null : Math.abs(diff);
+}
+
+/**
+ * 角度平均：以第一个值为基准做圆周差再平均。
+ * 359°59′50″ 与 0°00′10″ 会得到 0°00′00″，而不是 180°。
+ */
+export function meanAngles(values) {
+  const list = (values || []).filter((v) => Number.isFinite(v));
+  if (list.length === 0) return null;
+  const ref = list[0];
+  const avgDelta = list.reduce((sum, value) => sum + circularDiffSec(ref, value), 0) / list.length;
+  let result = (ref + avgDelta) % CIRCLE_SEC;
+  if (result < 0) result += CIRCLE_SEC;
+  return result;
+}
+
+/** 角度较差：各值相对首值圆周差的最大值 − 最小值 */
+export function spreadAngles(values) {
+  const list = (values || []).filter((v) => Number.isFinite(v));
+  if (list.length < 2) return null;
+  const ref = list[0];
+  const deltas = list.map((value) => circularDiffSec(ref, value));
+  return Math.max(...deltas) - Math.min(...deltas);
+}
+
 /** 算术平均；忽略 null / 非数字 */
 export function mean(values) {
   const list = (values || []).filter((v) => Number.isFinite(v));
@@ -151,6 +191,17 @@ export function formatMeters(value) {
 export function formatExactMeters(value) {
   if (!Number.isFinite(value)) return '—';
   let s = value.toFixed(4);
+  s = s.replace(/0+$/, '').replace(/\.$/, '');
+  const dot = s.indexOf('.');
+  const dec = dot === -1 ? 0 : s.length - dot - 1;
+  if (dec < 3) s += (dot === -1 ? '.' : '') + '0'.repeat(3 - dec);
+  return s;
+}
+
+/** 距离均值 → 最多五位小数的字符串（至少三位，用于显示未取整的均值） */
+export function formatDetailedMeters(value) {
+  if (!Number.isFinite(value)) return '—';
+  let s = roundHalfEven(value, 5).toFixed(5);
   s = s.replace(/0+$/, '').replace(/\.$/, '');
   const dot = s.indexOf('.');
   const dec = dot === -1 ? 0 : s.length - dot - 1;
